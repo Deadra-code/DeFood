@@ -1,5 +1,5 @@
 // Lokasi file: src/features/Recipes/components/AddIngredientDialog.jsx
-// Deskripsi: Desain ulang dengan tata letak dua panel untuk pencarian dan daftar pilihan.
+// Deskripsi: Diperbarui dengan auto-focus dan payload yang benar.
 
 import React, { useState, useEffect, useMemo } from 'react';
 import { Button } from '../../../components/ui/button';
@@ -12,14 +12,13 @@ import { useFoodContext } from '../../../context/FoodContext';
 import * as api from '../../../api/electronAPI';
 import { ScrollArea } from '../../../components/ui/scroll-area';
 import { Checkbox } from '../../../components/ui/checkbox';
-import { Badge } from '../../../components/ui/badge';
-import { cn } from '../../../lib/utils';
 
 const AddIngredientDialog = ({ recipeId, onIngredientAdded }) => {
     const [isOpen, setIsOpen] = useState(false);
     const [step, setStep] = useState(1);
     const [searchTerm, setSearchTerm] = useState('');
     const [selectedFoods, setSelectedFoods] = useState({});
+    // State sekarang menyimpan objek lengkap { quantity: '', unit: 'g' }
     const [quantities, setQuantities] = useState({});
 
     const { foods } = useFoodContext();
@@ -40,13 +39,18 @@ const AddIngredientDialog = ({ recipeId, onIngredientAdded }) => {
                 delete newSelection[foodId];
             } else {
                 newSelection[foodId] = true;
+                // Inisialisasi kuantitas saat dipilih
+                setQuantities(prevQty => ({ ...prevQty, [foodId]: { quantity: '', unit: 'g' } }));
             }
             return newSelection;
         });
     };
 
-    const handleQuantityChange = (foodId, value) => {
-        setQuantities(prev => ({ ...prev, [foodId]: value }));
+    const handleQuantityChange = (foodId, field, value) => {
+        setQuantities(prev => ({ 
+            ...prev, 
+            [foodId]: { ...prev[foodId], [field]: value } 
+        }));
     };
 
     const handleNextStep = () => {
@@ -60,8 +64,9 @@ const AddIngredientDialog = ({ recipeId, onIngredientAdded }) => {
     const handleAddIngredients = async () => {
         const ingredientsToAdd = foodsToQuantify.map(food => ({
             food_id: food.id,
-            quantity_g: parseFloat(quantities[food.id] || 0)
-        })).filter(ing => ing.quantity_g > 0);
+            quantity: parseFloat(quantities[food.id]?.quantity || 0),
+            unit: quantities[food.id]?.unit || 'g'
+        })).filter(ing => ing.quantity > 0);
 
         if (ingredientsToAdd.length === 0) {
             notify.error("Masukkan jumlah setidaknya untuk satu bahan.");
@@ -74,7 +79,7 @@ const AddIngredientDialog = ({ recipeId, onIngredientAdded }) => {
             onIngredientAdded();
             setIsOpen(false);
         } catch (err) {
-            notify.error("Gagal menambahkan bahan.");
+            notify.error(`Gagal menambahkan bahan: ${err.message}`);
             console.error(err);
         }
     };
@@ -97,7 +102,6 @@ const AddIngredientDialog = ({ recipeId, onIngredientAdded }) => {
             <DialogTrigger asChild>
                 <Button size="sm"><PlusCircle className="mr-2 h-4 w-4" /> Tambah Bahan</Button>
             </DialogTrigger>
-            {/* PERUBAHAN: Ukuran modal diperlebar untuk tata letak dua panel */}
             <DialogContent className="sm:max-w-3xl">
                 {step === 1 && (
                     <>
@@ -107,17 +111,16 @@ const AddIngredientDialog = ({ recipeId, onIngredientAdded }) => {
                                 Cari bahan di panel kiri dan lihat pilihan Anda di panel kanan.
                             </DialogDescription>
                         </DialogHeader>
-                        {/* PERUBAHAN: Tata letak grid dua panel */}
                         <div className="grid grid-cols-2 gap-6 py-4">
-                            {/* Panel Kiri: Pencarian */}
                             <div className="flex flex-col gap-4">
                                 <div className="relative">
                                     <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                                    <Input placeholder="Cari bahan..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} className="pl-9" />
+                                    {/* --- PERBAIKAN (UX #1): Menambahkan autoFocus --- */}
+                                    <Input placeholder="Cari bahan..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} className="pl-9" autoFocus />
                                 </div>
                                 <ScrollArea className="h-72 border rounded-md">
                                     <div className="p-2">
-                                        {filteredFoods.length > 0 ? filteredFoods.map((food, index) => (
+                                        {filteredFoods.length > 0 ? filteredFoods.map((food) => (
                                             <div 
                                                 key={food.id} 
                                                 className="flex items-center space-x-3 p-2 rounded-md transition-colors cursor-pointer hover:bg-accent"
@@ -141,8 +144,6 @@ const AddIngredientDialog = ({ recipeId, onIngredientAdded }) => {
                                     </div>
                                 </ScrollArea>
                             </div>
-
-                            {/* Panel Kanan: Bahan Dipilih */}
                             <div className="flex flex-col gap-4">
                                 <h4 className="font-medium text-lg">Bahan Dipilih ({selectedCount})</h4>
                                 <ScrollArea className="h-72 border rounded-md bg-muted/30">
@@ -172,26 +173,32 @@ const AddIngredientDialog = ({ recipeId, onIngredientAdded }) => {
                     </>
                 )}
                 {step === 2 && (
-                    // Step 2 tidak berubah
                     <>
                         <DialogHeader>
                             <DialogTitle>Masukkan Jumlah Bahan</DialogTitle>
                             <DialogDescription>
-                                Tentukan jumlah untuk setiap bahan yang Anda pilih dalam satuan gram.
+                                Tentukan jumlah untuk setiap bahan yang Anda pilih.
                             </DialogDescription>
                         </DialogHeader>
                         <div className="py-4">
                             <ScrollArea className="h-72">
                                 <div className="space-y-4 p-1">
                                     {foodsToQuantify.map(food => (
-                                        <div key={food.id} className="grid grid-cols-3 items-center gap-4">
+                                        <div key={food.id} className="grid grid-cols-4 items-center gap-4">
                                             <Label htmlFor={`quantity-${food.id}`} className="col-span-2">{food.name}</Label>
                                             <Input
                                                 id={`quantity-${food.id}`}
                                                 type="number"
-                                                placeholder="gram"
-                                                value={quantities[food.id] || ''}
-                                                onChange={(e) => handleQuantityChange(food.id, e.target.value)}
+                                                placeholder="Jumlah"
+                                                value={quantities[food.id]?.quantity || ''}
+                                                onChange={(e) => handleQuantityChange(food.id, 'quantity', e.target.value)}
+                                            />
+                                            <Input
+                                                id={`unit-${food.id}`}
+                                                type="text"
+                                                placeholder="Satuan"
+                                                value={quantities[food.id]?.unit || 'g'}
+                                                onChange={(e) => handleQuantityChange(food.id, 'unit', e.target.value)}
                                             />
                                         </div>
                                     ))}

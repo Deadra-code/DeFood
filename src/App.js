@@ -1,12 +1,12 @@
 // Lokasi file: src/App.js
-// Deskripsi: Menambahkan tab Pengaturan baru.
+// Deskripsi: Diperbarui untuk mengelola tab secara terprogram melalui state, bukan manipulasi DOM.
 
 import React, { useState, useEffect } from 'react';
-import { Loader2, BookOpen, Database, Moon, Sun, Settings } from 'lucide-react'; // Impor ikon Settings
+import { Loader2, BookOpen, Database, Moon, Sun, Settings } from 'lucide-react';
 import { useAppContext } from './context/AppContext';
 import RecipeManagerPage from './features/Recipes/RecipeManagerPage';
 import FoodDatabasePage from './features/FoodDatabase/FoodDatabasePage';
-import SettingsPage from './features/Settings/SettingsPage'; // Impor halaman baru
+import SettingsPage from './features/Settings/SettingsPage';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from './components/ui/tabs';
 import ToasterProvider from './components/ui/ToasterProvider.jsx';
 import FoodDialogManager from './components/FoodDialogManager';
@@ -21,8 +21,10 @@ export default function App() {
     const [activeRecipe, setActiveRecipe] = useState(null);
     const [theme, setTheme] = useState(localStorage.getItem('theme') || 'light');
     
-    const [isDirty, setIsDirty] = useState(false);
+    // --- PERBAIKAN (Isu #2): Logika tab dikelola oleh state ---
+    const [activeTab, setActiveTab] = useState('recipes'); 
     const [pendingTab, setPendingTab] = useState(null);
+    const [isDirty, setIsDirty] = useState(false);
     const [isUnsavedAlertOpen, setIsUnsavedAlertOpen] = useState(false);
 
     useEffect(() => {
@@ -41,18 +43,21 @@ export default function App() {
         setActiveRecipe(newRecipe);
     };
 
+    // --- PERBAIKAN (Isu #2): Handler baru untuk perubahan tab ---
     const handleTabChange = (newTab) => {
-        if (isDirty && newTab !== 'recipes') { // Hanya cek jika meninggalkan tab resep
+        // Hanya periksa perubahan jika meninggalkan tab resep
+        if (isDirty && activeTab === 'recipes') {
             setPendingTab(newTab);
             setIsUnsavedAlertOpen(true);
         } else {
-            document.querySelector(`[data-radix-collection-item][value="${newTab}"]`)?.click();
+            setActiveTab(newTab);
         }
     };
     
+    // --- PERBAIKAN (Isu #2): Konfirmasi perubahan tab sekarang hanya mengubah state ---
     const confirmTabChange = () => {
         setIsDirty(false);
-        document.querySelector(`[data-radix-collection-item][value="${pendingTab}"]`)?.click();
+        setActiveTab(pendingTab);
         setIsUnsavedAlertOpen(false);
         setPendingTab(null);
     };
@@ -73,20 +78,22 @@ export default function App() {
             <RecipeDialogManager onRecipeCreated={handleRecipeCreated} />
 
             <div className="flex h-screen font-sans bg-background text-foreground">
-                <Tabs defaultValue="recipes" className="w-full h-full flex flex-col">
+                {/* --- PERBAIKAN (Isu #2): Komponen Tabs sekarang dikontrol oleh state --- */}
+                <Tabs value={activeTab} onValueChange={handleTabChange} className="w-full h-full flex flex-col">
                     <header className="flex-shrink-0 border-b px-4 py-2 flex items-center justify-between">
                         <div className="flex items-center gap-4">
                             <h1 className="text-xl font-bold text-primary flex items-center gap-2">
                                <BookOpen/> DeFood
                             </h1>
                             <TabsList>
-                                <TabsTrigger value="recipes" onClick={() => handleTabChange('recipes')}>
+                                {/* --- PERBAIKAN (Isu #2): onClick dihapus, dikelola oleh onValueChange di parent --- */}
+                                <TabsTrigger value="recipes">
                                     <BookOpen className="h-4 w-4 mr-2" /> Buku Resep
                                 </TabsTrigger>
-                                <TabsTrigger value="foods" onClick={() => handleTabChange('foods')}>
+                                <TabsTrigger value="foods">
                                     <Database className="h-4 w-4 mr-2" /> Database Bahan
                                 </TabsTrigger>
-                                <TabsTrigger value="settings" onClick={() => handleTabChange('settings')}>
+                                <TabsTrigger value="settings">
                                     <Settings className="h-4 w-4 mr-2" /> Pengaturan
                                 </TabsTrigger>
                             </TabsList>
@@ -125,7 +132,7 @@ export default function App() {
                         </AlertDialogDescription>
                     </AlertDialogHeader>
                     <AlertDialogFooter>
-                        <AlertDialogCancel>Batal</AlertDialogCancel>
+                        <AlertDialogCancel onClick={() => setPendingTab(null)}>Batal</AlertDialogCancel>
                         <AlertDialogAction onClick={confirmTabChange}>Lanjutkan</AlertDialogAction>
                     </AlertDialogFooter>
                 </AlertDialogContent>

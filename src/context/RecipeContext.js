@@ -1,5 +1,5 @@
 // Lokasi file: src/context/RecipeContext.js
-// Deskripsi: Ditambahkan fungsi untuk menangani duplikasi resep.
+// Deskripsi: Diperbarui untuk menstandarisasi strategi pembaruan data.
 
 import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
 import * as api from '../api/electronAPI';
@@ -34,22 +34,22 @@ export const RecipeProvider = ({ children }) => {
         try {
             const newRecipe = await api.addRecipe(recipe);
             await fetchRecipes(); // Muat ulang daftar untuk konsistensi
-            return newRecipe; // Kembalikan resep baru agar bisa dipilih
+            return newRecipe; 
         } catch (err) {
             console.error("Add recipe error:", err);
             throw err;
         }
     };
     
+    // --- PERBAIKAN (Isu #3): updateRecipe sekarang me-refetch data untuk konsistensi ---
     const updateRecipe = async (recipe) => {
         try {
             await api.updateRecipeDetails(recipe);
-            // Update state lokal untuk responsivitas instan
-            setRecipes(prev => prev.map(r => (r.id === recipe.id ? recipe : r)));
+            await fetchRecipes(); // Muat ulang daftar untuk memastikan data sinkron
             return true;
         } catch (err) {
             console.error("Update recipe error:", err);
-            return false;
+            throw err; // Lempar error agar bisa ditangani di UI
         }
     };
 
@@ -60,15 +60,15 @@ export const RecipeProvider = ({ children }) => {
             return true;
         } catch (err) {
             console.error("Delete recipe error:", err);
-            return false;
+            throw err; // Lempar error agar bisa ditangani di UI
         }
     };
 
-    const duplicateRecipe = async (recipeId) => { // FUNGSI BARU
+    const duplicateRecipe = async (recipeId) => {
         try {
             const newRecipe = await api.duplicateRecipe(recipeId);
             await fetchRecipes();
-            return newRecipe; // Kembalikan resep baru untuk dipilih
+            return newRecipe;
         } catch (err) {
             console.error("Duplicate recipe error:", err);
             throw err;
@@ -81,7 +81,7 @@ export const RecipeProvider = ({ children }) => {
         addRecipe,
         updateRecipe,
         deleteRecipe,
-        duplicateRecipe, // BARU
+        duplicateRecipe,
         refetchRecipes: fetchRecipes,
     };
 

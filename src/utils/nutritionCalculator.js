@@ -1,20 +1,76 @@
 // Lokasi file: src/utils/nutritionCalculator.js
-// Deskripsi: Fungsi kalkulator sekarang menerima faktor skala porsi.
+// Deskripsi: Dibuat lebih aman dengan fungsi validasi proaktif.
 
 /**
- * Menghitung total nutrisi dan harga dari daftar bahan, dengan memperhitungkan skala porsi.
+ * Mengkonversi jumlah bahan ke gram. Melempar error jika konversi tidak ditemukan.
+ * @param {object} food - Objek bahan makanan.
+ * @param {number} quantity - Jumlah.
+ * @param {string} unit - Satuan.
+ * @returns {number} Jumlah dalam gram.
+ * @throws {Error} jika konversi untuk unit tidak ditemukan.
+ */
+function convertToGrams(food, quantity, unit) {
+    if (!food || typeof quantity !== 'number' || !unit) {
+        return 0;
+    }
+    const lowerCaseUnit = unit.toLowerCase();
+    if (lowerCaseUnit === 'g' || lowerCaseUnit === 'gram') {
+        return quantity;
+    }
+
+    try {
+        const conversions = JSON.parse(food.unit_conversions || '{}');
+        const conversionRate = conversions[unit]; // Gunakan unit asli untuk lookup
+
+        if (typeof conversionRate === 'number') {
+            return quantity * conversionRate;
+        }
+    } catch (e) {
+        console.error("Error parsing unit conversions:", e);
+        throw new Error(`Format konversi unit untuk "${food.name}" salah.`);
+    }
+    
+    // --- PERBAIKAN (Isu #1.1): Melempar error jika konversi tidak ada ---
+    throw new Error(`Konversi untuk satuan "${unit}" tidak ditemukan di bahan "${food.name}".`);
+}
+
+/**
+ * --- FUNGSI BARU (Isu #1.1): Memvalidasi semua bahan sebelum kalkulasi ---
+ * Memeriksa apakah semua bahan dalam resep dapat dihitung dengan akurat.
+ * @param {Array} ingredients - Daftar bahan dalam resep.
+ * @returns {Array} Daftar pesan error. Kosong jika semua valid.
+ */
+export function validateIngredientsForCalculation(ingredients = []) {
+    const errors = [];
+    if (!ingredients || ingredients.length === 0) {
+        return errors;
+    }
+
+    ingredients.forEach(item => {
+        if (!item.food) {
+            errors.push("Data bahan tidak lengkap pada salah satu item.");
+            return;
+        }
+        try {
+            // Coba konversi, jika gagal akan melempar error
+            convertToGrams(item.food, item.quantity, item.unit);
+        } catch (error) {
+            errors.push(error.message);
+        }
+    });
+
+    return errors;
+}
+
+
+/**
+ * Menghitung total nutrisi dan harga dari daftar bahan.
+ * Fungsi ini sekarang berasumsi bahan sudah divalidasi.
  * @param {Array} ingredients - Daftar bahan.
- * @param {number} scalingFactor - Faktor pengali untuk porsi (misal: 2 untuk 2 porsi).
  * @returns {Object} Objek berisi total nutrisi dan harga.
  */
-export function calculateRecipeTotals(ingredients = [], scalingFactor = 1) {
-    const totals = {
-        calories: 0,
-        protein: 0,
-        fat: 0,
-        carbs: 0,
-        price: 0,
-    };
+export function calculateRecipeTotals(ingredients = []) {
+    const totals = { calories: 0, protein: 0, fat: 0, carbs: 0, fiber: 0, price: 0 };
 
     if (!ingredients || ingredients.length === 0) {
         return totals;
@@ -23,14 +79,22 @@ export function calculateRecipeTotals(ingredients = [], scalingFactor = 1) {
     ingredients.forEach(item => {
         if (!item.food) return;
 
-        const baseMultiplier = item.quantity_g / (item.food.serving_size_g || 100);
-        const finalMultiplier = baseMultiplier * scalingFactor;
+        try {
+            const quantityInGrams = convertToGrams(item.food, item.quantity, item.unit);
+            if (quantityInGrams === 0) return;
 
-        totals.calories += (item.food.calories_kcal || 0) * finalMultiplier;
-        totals.protein += (item.food.protein_g || 0) * finalMultiplier;
-        totals.fat += (item.food.fat_g || 0) * finalMultiplier;
-        totals.carbs += (item.food.carbs_g || 0) * finalMultiplier;
-        totals.price += (item.food.price_per_100g || 0) * baseMultiplier * scalingFactor; // Harga juga diskalakan
+            const multiplier = quantityInGrams / 100;
+
+            totals.calories += (item.food.calories_kcal || 0) * multiplier;
+            totals.protein += (item.food.protein_g || 0) * multiplier;
+            totals.fat += (item.food.fat_g || 0) * multiplier;
+            totals.carbs += (item.food.carbs_g || 0) * multiplier;
+            totals.fiber += (item.food.fiber_g || 0) * multiplier;
+            totals.price += (item.food.price_per_100g || 0) * multiplier;
+        } catch (e) {
+            // Jika ada error (seharusnya sudah ditangkap oleh validator), lewati saja item ini.
+            console.error(`Skipping calculation for ${item.food.name} due to error: ${e.message}`);
+        }
     });
 
     return totals;

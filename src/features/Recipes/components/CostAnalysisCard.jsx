@@ -1,30 +1,85 @@
 // Lokasi file: src/features/Recipes/components/CostAnalysisCard.jsx
-// Deskripsi: Panel interaktif untuk analisis biaya dan kalkulasi harga jual.
+// Deskripsi: Menambahkan pemeriksaan keamanan untuk prop 'ingredients'.
 
 import React, { useState, useEffect, useMemo } from 'react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '../../../components/ui/card';
 import { Label } from '../../../components/ui/label';
 import { Input } from '../../../components/ui/input';
-import { Slider } from '../../../components/ui/slider'; // Perlu diimpor/dibuat
+import { Slider } from '../../../components/ui/slider';
 import { useSettingsContext } from '../../../context/SettingsContext';
-import { HelpCircle } from 'lucide-react';
+import { HelpCircle, Info } from 'lucide-react';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '../../../components/ui/tooltip';
+import { Popover, PopoverContent, PopoverTrigger } from '../../../components/ui/popover';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow, TableFooter } from '../../../components/ui/table';
+import { Button } from '../../../components/ui/button';
 
 const formatCurrency = (value) => {
     return new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', minimumFractionDigits: 0 }).format(value || 0);
 };
 
-// Komponen Slider perlu dibuat jika belum ada.
-// Untuk sementara, kita akan gunakan Input saja. Jika Anda punya komponen Slider,
-// ganti <Input type="range"> dengan <Slider>.
-const SliderComponent = ({ value, onValueChange }) => (
-    <Input type="range" min="0" max="200" value={value} onChange={e => onValueChange([Number(e.target.value)])} />
-);
+function convertToGrams(food, quantity, unit) {
+    if (!food || typeof quantity !== 'number' || !unit) return 0;
+    if (unit.toLowerCase() === 'g' || unit.toLowerCase() === 'gram') return quantity;
+    try {
+        const conversions = JSON.parse(food.unit_conversions || '{}');
+        const conversionRate = conversions[unit];
+        if (typeof conversionRate === 'number') return quantity * conversionRate;
+    } catch (e) { console.error("Error parsing unit conversions:", e); }
+    return quantity;
+}
+
+const HppDetailsPopover = ({ ingredients = [], servings }) => { // PERBAIKAN: Default value untuk ingredients
+    const safeServings = servings > 0 ? servings : 1;
+    const totalHpp = useMemo(() => {
+        return ingredients.reduce((acc, ing) => {
+            const quantityInGrams = convertToGrams(ing.food, ing.quantity, ing.unit);
+            const multiplier = quantityInGrams / 100;
+            const cost = (ing.food.price_per_100g || 0) * multiplier;
+            return acc + (cost / safeServings);
+        }, 0);
+    }, [ingredients, safeServings]);
+
+    return (
+        <Popover>
+            <PopoverTrigger asChild>
+                <Button variant="ghost" size="icon" className="h-5 w-5 ml-1">
+                    <Info className="h-4 w-4 text-muted-foreground" />
+                </Button>
+            </PopoverTrigger>
+            <PopoverContent className="w-80">
+                <div className="space-y-2">
+                    <h4 className="font-medium leading-none">Rincian HPP per Porsi</h4>
+                    <p className="text-sm text-muted-foreground">
+                        Biaya bahan baku dibagi dengan jumlah porsi.
+                    </p>
+                </div>
+                <Table className="mt-4">
+                    <TableHeader><TableRow><TableHead>Bahan</TableHead><TableHead className="text-right">Biaya</TableHead></TableRow></TableHeader>
+                    <TableBody>
+                        {ingredients.map(ing => {
+                            const quantityInGrams = convertToGrams(ing.food, ing.quantity, ing.unit);
+                            const multiplier = quantityInGrams / 100;
+                            const costPerIngredient = (ing.food.price_per_100g || 0) * multiplier;
+                            const costPerPortion = costPerIngredient / safeServings;
+                            return (
+                                <TableRow key={ing.id}>
+                                    <TableCell>{ing.food.name}</TableCell>
+                                    <TableCell className="text-right">{formatCurrency(costPerPortion)}</TableCell>
+                                </TableRow>
+                            );
+                        })}
+                    </TableBody>
+                    <TableFooter><TableRow><TableCell>Total</TableCell><TableCell className="text-right font-bold">{formatCurrency(totalHpp)}</TableCell></TableRow></TableFooter>
+                </Table>
+            </PopoverContent>
+        </Popover>
+    );
+};
 
 
-export default function CostAnalysisCard({ hppPerPortion }) {
+export default function CostAnalysisCard({ hppPerPortion, ingredients, servings }) {
     const { settings, loading } = useSettingsContext();
-    const [margin, setMargin] = useState(parseFloat(settings.margin) || 70);
+    const [margin, setMargin] = useState(70);
 
     useEffect(() => {
         if (!loading) {
@@ -34,12 +89,9 @@ export default function CostAnalysisCard({ hppPerPortion }) {
 
     const opCost = parseFloat(settings.operationalCost) || 0;
     const laborCost = parseFloat(settings.laborCost) || 0;
-
     const totalModalCost = hppPerPortion + opCost + laborCost;
     const profitPerPortion = totalModalCost * (margin / 100);
     const sellingPrice = totalModalCost + profitPerPortion;
-
-    // Pembulatan harga jual ke atas ke 500 terdekat
     const roundedSellingPrice = Math.ceil(sellingPrice / 500) * 500;
 
     if (loading) {
@@ -51,43 +103,28 @@ export default function CostAnalysisCard({ hppPerPortion }) {
             <Card>
                 <CardHeader>
                     <CardTitle>Analisis Biaya & Harga Jual</CardTitle>
-                    <CardDescription>Kalkulator untuk menentukan harga jual produk Anda.</CardDescription>
+                    <CardDescription>Kalkulator untuk menentukan harga jual per porsi.</CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-4">
-                    {/* Rincian Biaya */}
                     <div className="space-y-2 text-sm">
-                        <div className="flex justify-between"><span>HPP Bahan Baku</span> <span>{formatCurrency(hppPerPortion)}</span></div>
-                        <div className="flex justify-between"><span>Biaya Operasional</span> <span>{formatCurrency(opCost)}</span></div>
-                        <div className="flex justify-between"><span>Biaya Tenaga Kerja</span> <span>{formatCurrency(laborCost)}</span></div>
+                        <div className="flex justify-between items-center">
+                            <span className="flex items-center">HPP Bahan Baku / Porsi <HppDetailsPopover ingredients={ingredients} servings={servings} /></span> 
+                            <span>{formatCurrency(hppPerPortion)}</span>
+                        </div>
+                        <div className="flex justify-between"><span>Biaya Operasional / Porsi</span> <span>{formatCurrency(opCost)}</span></div>
+                        <div className="flex justify-between"><span>Biaya Tenaga Kerja / Porsi</span> <span>{formatCurrency(laborCost)}</span></div>
                         <div className="flex justify-between font-bold border-t pt-2 mt-2"><span>Total Biaya Modal / Porsi</span> <span>{formatCurrency(totalModalCost)}</span></div>
                     </div>
-
-                    {/* Kalkulator Interaktif */}
                     <div className="space-y-3 pt-4 border-t">
                         <div className="flex items-center justify-between">
                             <Label htmlFor="margin-input" className="flex items-center">
                                 Margin Keuntungan
-                                <Tooltip>
-                                    <TooltipTrigger asChild>
-                                        <HelpCircle className="h-4 w-4 ml-1.5 text-muted-foreground" />
-                                    </TooltipTrigger>
-                                    <TooltipContent>
-                                        <p>Sesuaikan margin untuk resep ini. Nilai awal diambil dari pengaturan default.</p>
-                                    </TooltipContent>
-                                </Tooltip>
+                                <Tooltip><TooltipTrigger asChild><HelpCircle className="h-4 w-4 ml-1.5 text-muted-foreground" /></TooltipTrigger><TooltipContent><p>Sesuaikan margin untuk resep ini.</p></TooltipContent></Tooltip>
                             </Label>
-                            <Input
-                                id="margin-input"
-                                type="number"
-                                value={margin}
-                                onChange={e => setMargin(Number(e.target.value))}
-                                className="w-20 h-8 text-right"
-                            />
+                            <Input id="margin-input" type="number" value={margin} onChange={e => setMargin(Number(e.target.value))} className="w-20 h-8 text-right" />
                         </div>
-                        <SliderComponent value={[margin]} onValueChange={(value) => setMargin(value[0])} />
+                        <Slider value={[margin]} onValueChange={(value) => setMargin(value[0])} max={200} step={1} />
                     </div>
-
-                    {/* Hasil Akhir */}
                     <div className="space-y-2 text-sm">
                          <div className="flex justify-between"><span>Profit / Porsi</span> <span>{formatCurrency(profitPerPortion)}</span></div>
                          <div className="flex justify-between items-center font-bold text-lg text-primary">

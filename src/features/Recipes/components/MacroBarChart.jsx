@@ -1,16 +1,15 @@
 // Lokasi file: src/features/Recipes/components/MacroBarChart.jsx
-// Deskripsi: Menambahkan animasi "tumbuh" pada grafik batang.
+// Deskripsi: Menambahkan Serat (Fiber) ke dalam visualisasi.
 
 import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '../../../components/ui/card';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '../../../components/ui/tooltip';
 
-const MacroBarChart = ({ protein, carbs, fat }) => {
+const MacroBarChart = ({ protein, carbs, fat, fiber }) => {
     const [rendered, setRendered] = useState(false);
-    const totalMacros = protein + carbs + fat;
+    const totalMacros = protein + carbs + fat; // Serat tidak dihitung dalam total kalori makro
 
     useEffect(() => {
-        // Memicu animasi setelah komponen dipasang
         const timer = setTimeout(() => setRendered(true), 100);
         return () => clearTimeout(timer);
     }, []);
@@ -19,11 +18,11 @@ const MacroBarChart = ({ protein, carbs, fat }) => {
         return (
             <Card>
                 <CardHeader>
-                    <CardTitle className="text-sm font-medium">Rasio Makronutrisi</CardTitle>
+                    <CardTitle className="text-sm font-medium">Ringkasan Nutrisi</CardTitle>
                 </CardHeader>
                 <CardContent>
                     <div className="text-center text-sm text-muted-foreground py-4">
-                        Data makro tidak tersedia.
+                        Data nutrisi tidak tersedia.
                     </div>
                 </CardContent>
             </Card>
@@ -36,14 +35,14 @@ const MacroBarChart = ({ protein, carbs, fat }) => {
 
     const macroData = [
         { name: 'Protein', value: protein, percent: proteinPercent, color: 'bg-macro-protein' },
-        { name: 'Karbohidrat', value: carbs, percent: carbsPercent, color: 'bg-macro-carbs' },
+        { name: 'Karbo', value: carbs, percent: carbsPercent, color: 'bg-macro-carbs' },
         { name: 'Lemak', value: fat, percent: fatPercent, color: 'bg-macro-fat' },
     ];
 
     return (
         <Card className="col-span-2">
             <CardHeader>
-                <CardTitle className="text-sm font-medium">Rasio Makronutrisi</CardTitle>
+                <CardTitle className="text-sm font-medium">Ringkasan Nutrisi / Porsi</CardTitle>
             </CardHeader>
             <CardContent>
                 <TooltipProvider>
@@ -53,7 +52,6 @@ const MacroBarChart = ({ protein, carbs, fat }) => {
                                 <TooltipTrigger asChild>
                                     <div
                                         className={`${macro.color} transition-all duration-700 ease-out`}
-                                        // PENAMBAHAN: Atur lebar berdasarkan state 'rendered'
                                         style={{ width: rendered ? `${macro.percent}%` : '0%' }}
                                     />
                                 </TooltipTrigger>
@@ -64,13 +62,16 @@ const MacroBarChart = ({ protein, carbs, fat }) => {
                         ))}
                     </div>
                 </TooltipProvider>
-                <div className="mt-3 flex justify-between text-xs text-muted-foreground">
+                <div className="mt-3 grid grid-cols-4 gap-2 text-xs text-muted-foreground">
                     {macroData.map((macro) => (
                         <div key={macro.name} className="flex items-center gap-2">
                             <span className={`h-2 w-2 rounded-full ${macro.color}`} />
                             <span>{macro.name}</span>
                         </div>
                     ))}
+                     <div className="flex items-center gap-2 font-semibold">
+                        <span>Serat: {fiber?.toFixed(1) || 0}g</span>
+                    </div>
                 </div>
             </CardContent>
         </Card>
