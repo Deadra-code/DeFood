@@ -1,98 +1,90 @@
-# **BetonLAB \- Aplikasi Manajemen Laboratorium Beton**
+# **DeFood - Asisten Resep \& Kalkulator Biaya Kuliner**
 
-**BetonLAB** adalah aplikasi desktop komprehensif yang dirancang untuk para insinyur sipil, teknisi laboratorium, dan profesional di bidang konstruksi untuk mengelola seluruh alur kerja desain campuran beton (concrete mix design) dan kontrol kualitas sesuai dengan Standar Nasional Indonesia (SNI).
+**DeFood** adalah aplikasi desktop modern yang dirancang untuk para penggemar kuliner, koki rumahan, hingga pemilik usaha kuliner. Aplikasi ini berfungsi sebagai buku resep digital yang cerdas, dilengkapi dengan kalkulator nutrisi otomatis dan alat analisis biaya yang mendalam untuk membantu Anda merencanakan, menganalisis, dan mengoptimalkan setiap masakan.
 
 ## **Fitur Utama**
 
-Aplikasi ini dikemas dengan fitur-fitur canggih untuk menyederhanakan dan mendigitalkan proses kerja Anda:
+Aplikasi ini dikemas dengan fitur-fitur canggih untuk menyederhanakan alur kerja Anda, dari dapur pribadi hingga perencanaan bisnis.
 
-* **Manajemen Proyek & Trial Mix:** Organisasikan pekerjaan Anda ke dalam proyek-proyek, dan kelola beberapa versi *trial mix* di dalam setiap proyek.  
-* **Kalkulator Desain Campuran:** Perhitungan *job mix design* yang akurat berdasarkan **SNI 03-2834-2000**, dengan antarmuka langkah-demi-langkah yang intuitif.  
-* **Pustaka Material & Pengujian:**  
-  * Kelola pustaka material Anda (semen, agregat halus, agregat kasar).  
-  * Catat hasil pengujian laboratorium untuk setiap material (analisis saringan, berat jenis, kadar air, abrasi, dll.).  
-  * Gunakan data pengujian yang "Aktif" secara otomatis dalam perhitungan desain.  
-* **Manajemen Benda Uji:** Lacak siklus hidup setiap benda uji, mulai dari pengecoran, perawatan (*curing*), hingga pengujian, lengkap dengan status yang jelas.  
-* **Analisis Kekuatan Beton:**  
-  * Visualisasikan perkembangan kuat tekan beton dari waktu ke waktu melalui grafik interaktif.  
-  * Gunakan **Grafik Kontrol Kualitas Statistik (SQC)** untuk memantau konsistensi dan variabilitas hasil pengujian Anda.  
-* **Pelaporan Profesional:**  
-  * Buat laporan PDF yang komprehensif untuk setiap *trial mix* atau ringkasan proyek secara keseluruhan.  
-  * Ekspor data mentah ke format CSV untuk analisis lebih lanjut.  
-* **Alur Kerja yang Efisien:**  
-  * **Pencarian Global:** Temukan proyek, trial, atau material secara instan dari mana saja di dalam aplikasi.  
-  * **Template Pengujian:** Buat dan terapkan serangkaian pengujian standar untuk material baru dengan satu klik.  
-  * **Notifikasi & Pengingat:** Dapatkan pengingat otomatis untuk jadwal pengujian benda uji yang akan jatuh tempo.  
-* **Pustaka Dokumen Referensi:** Unggah dan kelola file-file SNI atau dokumen referensi lainnya langsung di dalam aplikasi.  
-* **Keamanan Data:** Lakukan pencadangan (backup) dan pemulihan (restore) seluruh database Anda dengan mudah.
+#### **Manajemen Resep \& Bahan**
+
+* **Database Bahan Lengkap:** Kelola pustaka bahan makanan Anda sendiri, lengkap dengan informasi nutrisi (kalori, protein, karbohidrat, lemak), harga, dan kategori.
+* **Antarmuka Canggih:** Tampilan database bahan yang fleksibel (mode kartu \& tabel), dilengkapi dengan fitur pencarian, filter, dan berbagai opsi pengurutan (nama, harga, paling sering digunakan).
+* **Manajemen Resep Interaktif:** Buat dan kelola resep dengan antarmuka dua panel yang efisien. Atur urutan bahan dengan mudah menggunakan *drag-and-drop* dan edit jumlahnya secara *inline*.
+* **Penambahan Bahan Massal:** Tambahkan beberapa bahan sekaligus ke dalam resep menggunakan antarmuka *checklist* dua panel yang intuitif.
+
+#### **Analisis Nutrisi \& Biaya**
+
+* **Kalkulator Nutrisi Otomatis:** Setiap resep secara otomatis menghitung total kalori dan makronutrien (protein, karbohidrat, lemak) per porsi, yang diperbarui secara *real-time* saat Anda menyesuaikan jumlah porsi.
+* **Analisis Biaya \& Kalkulator Harga Jual:**
+
+  * **Rincian Biaya Modal:** Hitung **Harga Pokok Produksi (HPP)** per porsi secara akurat, dengan kemampuan untuk menambahkan biaya operasional dan tenaga kerja.
+  * **Kalkulator Harga Jual Interaktif:** Tentukan harga jual yang profitabel dengan menyesuaikan **persentase margin keuntungan** menggunakan *slider* interaktif.
+  * **Simulasi Profit:** Proyeksikan potensi keuntungan dengan cepat berdasarkan target penjualan per porsi.
+
+* **Visualisasi Data:** Pahami komposisi makronutrien dan struktur biaya resep Anda melalui grafik dan diagram yang mudah dibaca.
+
+#### **Peningkatan Alur Kerja \& Efisiensi**
+
+* **Duplikasi Resep:** Buat salinan resep yang sudah ada dengan satu klik untuk bereksperimen dengan variasi baru tanpa harus memulai dari nol.
+* **Peringatan Cerdas:** Aplikasi akan memberikan peringatan jika Anda mencoba beralih halaman atau resep tanpa menyimpan perubahan terakhir Anda, mencegah kehilangan data yang tidak disengaja.
+* **Ekspor ke PDF:** Bagikan atau cetak resep Anda dengan mudah melalui fitur ekspor ke PDF yang profesional.
+
+#### **Pengalaman Pengguna Modern**
+
+* **UI yang Sleek \& Modern:** Antarmuka yang bersih dan intuitif dibangun dengan komponen modern.
+* **Tema Terang \& Gelap:** Sesuaikan tampilan aplikasi dengan preferensi Anda.
+* **Animasi Halus:** Nikmati pengalaman pengguna yang responsif dengan transisi dan animasi yang elegan di seluruh aplikasi.
+
+## **Peta Jalan Fitur (Rencana Pengembangan)**
+
+DeFood terus berkembang. Berikut adalah beberapa fitur besar yang direncanakan untuk masa depan, sesuai dengan visi untuk menjadi asisten kuliner yang lengkap:
+
+* **Fase 1: Buku Resep Cerdas**
+
+  * **Konteks Nutrisi Personal:** Menetapkan target kalori harian dan melihat bagaimana setiap resep berkontribusi pada target tersebut.
+
+* **Fase 2: Dapur Efisien**
+
+  * **Komponen Resep (Sub-Recipes):** Membuat resep dasar (seperti saus atau bumbu) yang dapat digunakan kembali di dalam resep lain.
+  * **Manajemen Inventaris:** Melacak stok bahan yang Anda miliki.
+
+* **Fase 3: Perencana Strategis**
+
+  * **Perencana Menu Mingguan:** Merencanakan menu untuk seminggu penuh menggunakan resep yang ada.
+  * **Daftar Belanja Cerdas \& Otomatis:** Membuat daftar belanja secara otomatis berdasarkan rencana menu dan stok inventaris.
 
 ## **Tumpukan Teknologi**
 
-* **Framework:** Electron & React  
-* **Database:** SQLite 3  
-* **Styling:** Tailwind CSS & shadcn/ui  
-* **Grafik:** Recharts  
-* **Pelaporan:** jsPDF & PapaParse
-
-## **Struktur Direktori**
-
-Struktur proyek diorganisir berdasarkan fitur untuk kemudahan pemeliharaan dan pengembangan.
-
-BetonLAB/  
-├── public/  
-│   ├── electron.js  (Logika Proses Utama Electron)  
-│   ├── preload.js   (Jembatan antara Backend dan Frontend)  
-│   └── index.html  
-│  
-├── src/  
-│   ├── api/  
-│   ├── components/  
-│   ├── data/  
-│   ├── features/    (Modul-modul utama aplikasi)  
-│   │   ├── Dashboard/  
-│   │   ├── MaterialTesting/  
-│   │   ├── Projects/  
-│   │   ├── ReferenceLibrary/  
-│   │   └── Settings/  
-│   ├── hooks/       (Logika state dan data fetching)  
-│   ├── lib/  
-│   ├── utils/       (Fungsi utilitas seperti kalkulator dan generator PDF)  
-│   ├── App.js       (Komponen utama aplikasi)  
-│   └── ...  
-│  
-├── package.json  
-└── ...
-
-*(Untuk struktur direktori lengkap, silakan lihat file Struktur Direktori Aplikasi BetonLAB.md)*
+* **Framework:** Electron \& React
+* **Database:** SQLite 3
+* **Styling:** Tailwind CSS \& shadcn/ui
+* **Manajemen State:** React Context
+* **Animasi:** tailwindcss-animate
+* **Drag \& Drop:** @hello-pangea/dnd
+* **Pelaporan:** jsPDF \& jspdf-autotable
 
 ## **Instalasi dan Menjalankan (Untuk Pengembang)**
 
 Untuk menjalankan proyek ini di lingkungan pengembangan, ikuti langkah-langkah berikut:
 
-1. **Prasyarat:** Pastikan Anda telah menginstal [Node.js](https://nodejs.org/) (termasuk npm).  
+1. **Prasyarat:** Pastikan Anda telah menginstal [Node.js](https://nodejs.org/) (termasuk npm).
 2. **Clone Repositori:**  
-   git clone https://github.com/nama-anda/betonlab.git  
-   cd betonlab
-
+   git clone https://www.andarepository.com/  
+   cd defood-refactored
 3. **Instal Dependensi:**  
    npm install
-
 4. Jalankan dalam Mode Pengembangan:  
    Perintah ini akan menjalankan server pengembangan React dan aplikasi Electron secara bersamaan.  
    npm run electron:dev
 
 ## **Membangun Aplikasi untuk Produksi**
 
-Untuk membuat file installer yang dapat didistribusikan (misalnya .exe untuk Windows), jalankan perintah berikut:
+Untuk membuat file *installer* yang dapat didistribusikan (misalnya .exe untuk Windows), jalankan perintah berikut:
 
 npm run build
 
-Hasil build akan tersedia di dalam direktori dist.
+Hasil *build* akan tersedia di dalam direktori dist atau release.
 
-## **Kontribusi**
 
-Kontribusi untuk meningkatkan BetonLAB sangat kami hargai. Silakan lakukan *fork* pada repositori ini, buat *branch* baru untuk fitur atau perbaikan Anda, dan ajukan *Pull Request*.
 
-## **Lisensi**
-
-Proyek ini dilisensikan di bawah [Lisensi MIT](http://docs.google.com/LICENSE.md).
