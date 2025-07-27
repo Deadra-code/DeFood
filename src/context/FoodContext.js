@@ -1,6 +1,5 @@
 // Lokasi file: src/context/FoodContext.js
-// Deskripsi: Konteks untuk mengelola state global dari database bahan makanan.
-//            Logika disesuaikan untuk melempar error agar bisa ditangani oleh UI.
+// Deskripsi: Memperbaiki bug dengan mengekspos fungsi fetchFoods.
 
 import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
 import * as api from '../api/electronAPI';
@@ -40,12 +39,10 @@ export const FoodProvider = ({ children }) => {
     const addFood = async (food) => {
         try {
             const newFood = await api.addFood(food);
-            // Muat ulang semua bahan untuk memastikan data (terutama yang diurutkan) konsisten
             await fetchFoods();
             return newFood;
         } catch (err) {
             console.error("Add food error:", err);
-            // Melempar error agar bisa ditangkap oleh komponen pemanggil
             throw err;
         }
     };
@@ -53,12 +50,10 @@ export const FoodProvider = ({ children }) => {
     const updateFood = async (food) => {
         try {
             await api.updateFood(food);
-            // Muat ulang semua bahan untuk memastikan data (terutama yang diurutkan) konsisten
             await fetchFoods();
             return true;
         } catch (err) {
             console.error("Update food error:", err);
-            // Melempar error agar bisa ditangkap oleh komponen pemanggil
             throw err;
         }
     };
@@ -66,16 +61,13 @@ export const FoodProvider = ({ children }) => {
     const deleteFood = (foodToDelete) => {
         const originalFoods = [...foods];
         
-        // 1. Update UI secara optimis
         setFoods(prev => prev.filter(f => f.id !== foodToDelete.id));
 
-        // 2. Buat controller untuk pembatalan
         const controller = { isCancelled: false };
         const deleteId = foodToDelete.id;
         
         setPendingDelete(prev => ({ ...prev, [deleteId]: controller }));
 
-        // 3. Fungsi untuk membatalkan
         const handleUndo = () => {
             controller.isCancelled = true;
             setFoods(originalFoods);
@@ -87,7 +79,6 @@ export const FoodProvider = ({ children }) => {
             });
         };
 
-        // 4. Tampilkan toast dengan opsi undo
         toast.custom(
             (t) => (
                 <UndoToast
@@ -99,7 +90,6 @@ export const FoodProvider = ({ children }) => {
             { duration: 5000 }
         );
 
-        // 5. Setelah 5 detik, jalankan penghapusan permanen JIKA tidak dibatalkan
         setTimeout(() => {
             setPendingDelete(prev => {
                 const newPending = { ...prev };
@@ -111,7 +101,6 @@ export const FoodProvider = ({ children }) => {
                 api.deleteFood(deleteId).catch(err => {
                     console.error("Permanent delete failed:", err);
                     toast.error(`Gagal menghapus "${foodToDelete.name}" secara permanen.`);
-                    // Jika gagal di backend, kembalikan state UI
                     setFoods(originalFoods);
                 });
             }
@@ -125,6 +114,7 @@ export const FoodProvider = ({ children }) => {
         addFood,
         updateFood,
         deleteFood,
+        fetchFoods, // --- PERBAIKAN: Ekspos fetchFoods agar bisa digunakan di komponen lain ---
     };
 
     return <FoodContext.Provider value={value}>{children}</FoodContext.Provider>;

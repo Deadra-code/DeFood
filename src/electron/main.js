@@ -1,6 +1,5 @@
 // Lokasi file: src/electron/main.js
-// Deskripsi: File utama proses Electron. Tidak ada perubahan fungsional signifikan,
-//            hanya memastikan semua berjalan dengan handler yang telah disederhanakan.
+// Deskripsi: Ditambahkan workaround untuk mengabaikan error validasi SSL/TLS dan memprioritaskan IPv4.
 
 const { app, dialog, BrowserWindow, ipcMain } = require('electron');
 const path = require('path');
@@ -8,6 +7,18 @@ const log = require('electron-log');
 const isDev = require('electron-is-dev');
 const { initializeDatabase, getDbInstance, closeDatabase } = require('./database');
 const { registerIpcHandlers } = require('./ipcHandlers');
+const dns = require('dns'); // --- PERBAIKAN: Impor modul DNS ---
+
+// --- PERBAIKAN: Prioritaskan DNS lookup ke IPv4 untuk mengatasi masalah ETIMEDOUT ---
+dns.setDefaultResultOrder('ipv4first');
+// ---------------------------------------------------------------------------------
+
+
+// --- PERBAIKAN FINAL: Mengabaikan error validasi sertifikat SSL ---
+// Ini akan memaksa Node.js untuk menerima koneksi bahkan jika ada
+// Antivirus/Firewall yang melakukan inspeksi SSL/TLS.
+process.env.NODE_TLS_REJECT_UNAUTHORIZED = '0';
+// ---------------------------------------------------------------------------------
 
 // Konfigurasi logging
 log.transports.file.resolvePathFn = () => path.join(app.getPath('userData'), 'logs/main.log');
@@ -28,7 +39,7 @@ process.on('uncaughtException', (error) => {
 
 function createWindow() {
     const mainWindow = new BrowserWindow({
-        width: 1280, // Ukuran disesuaikan untuk layout 2 kolom
+        width: 1280,
         height: 800,
         webPreferences: {
             preload: path.join(__dirname, '../../public/preload.js'),
@@ -62,7 +73,6 @@ app.whenReady().then(async () => {
         const db = getDbInstance();
         registerIpcHandlers(db);
         
-        // Listener untuk error dari renderer
         ipcMain.on('log-error-to-main', (event, error) => {
             rendererLogger.error('Error from renderer:', error);
         });

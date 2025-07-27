@@ -1,5 +1,5 @@
 // Lokasi file: src/App.js
-// Deskripsi: Diperbarui untuk mengelola tab secara terprogram melalui state, bukan manipulasi DOM.
+// Deskripsi: Diperbarui untuk menambahkan TooltipProvider di level atas untuk memperbaiki error.
 
 import React, { useState, useEffect } from 'react';
 import { Loader2, BookOpen, Database, Moon, Sun, Settings } from 'lucide-react';
@@ -14,6 +14,7 @@ import RecipeDialogManager from './features/Recipes/components/RecipeDialogManag
 import { useRecipeContext } from './context/RecipeContext';
 import { Button } from './components/ui/button';
 import { AlertDialog, AlertDialogContent, AlertDialogHeader, AlertDialogTitle, AlertDialogDescription, AlertDialogFooter, AlertDialogCancel, AlertDialogAction } from './components/ui/alert-dialog';
+import { TooltipProvider } from './components/ui/tooltip'; // --- PERBAIKAN: Impor TooltipProvider ---
 
 export default function App() {
     const { apiReady } = useAppContext();
@@ -21,7 +22,6 @@ export default function App() {
     const [activeRecipe, setActiveRecipe] = useState(null);
     const [theme, setTheme] = useState(localStorage.getItem('theme') || 'light');
     
-    // --- PERBAIKAN (Isu #2): Logika tab dikelola oleh state ---
     const [activeTab, setActiveTab] = useState('recipes'); 
     const [pendingTab, setPendingTab] = useState(null);
     const [isDirty, setIsDirty] = useState(false);
@@ -43,9 +43,7 @@ export default function App() {
         setActiveRecipe(newRecipe);
     };
 
-    // --- PERBAIKAN (Isu #2): Handler baru untuk perubahan tab ---
     const handleTabChange = (newTab) => {
-        // Hanya periksa perubahan jika meninggalkan tab resep
         if (isDirty && activeTab === 'recipes') {
             setPendingTab(newTab);
             setIsUnsavedAlertOpen(true);
@@ -54,7 +52,6 @@ export default function App() {
         }
     };
     
-    // --- PERBAIKAN (Isu #2): Konfirmasi perubahan tab sekarang hanya mengubah state ---
     const confirmTabChange = () => {
         setIsDirty(false);
         setActiveTab(pendingTab);
@@ -72,13 +69,13 @@ export default function App() {
     }
 
     return (
-        <>
+        // --- PERBAIKAN: Membungkus seluruh aplikasi dengan TooltipProvider ---
+        <TooltipProvider>
             <ToasterProvider />
             <FoodDialogManager />
             <RecipeDialogManager onRecipeCreated={handleRecipeCreated} />
 
             <div className="flex h-screen font-sans bg-background text-foreground">
-                {/* --- PERBAIKAN (Isu #2): Komponen Tabs sekarang dikontrol oleh state --- */}
                 <Tabs value={activeTab} onValueChange={handleTabChange} className="w-full h-full flex flex-col">
                     <header className="flex-shrink-0 border-b px-4 py-2 flex items-center justify-between">
                         <div className="flex items-center gap-4">
@@ -86,7 +83,6 @@ export default function App() {
                                <BookOpen/> DeFood
                             </h1>
                             <TabsList>
-                                {/* --- PERBAIKAN (Isu #2): onClick dihapus, dikelola oleh onValueChange di parent --- */}
                                 <TabsTrigger value="recipes">
                                     <BookOpen className="h-4 w-4 mr-2" /> Buku Resep
                                 </TabsTrigger>
@@ -137,6 +133,6 @@ export default function App() {
                     </AlertDialogFooter>
                 </AlertDialogContent>
             </AlertDialog>
-        </>
+        </TooltipProvider>
     );
 }
