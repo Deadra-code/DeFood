@@ -1,10 +1,10 @@
 // Lokasi file: src/features/Recipes/RecipeManagerPage.js
-// Deskripsi: Menerapkan animasi tata letak awal dan daftar bertingkat.
+// Deskripsi: Memindahkan tombol "Resep Baru" ke atas dan menambahkan fitur pengurutan.
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { Button } from '../../components/ui/button';
 import { Card, CardContent } from '../../components/ui/card';
-import { PlusCircle, ChevronRight, BookOpen, Search } from 'lucide-react';
+import { PlusCircle, ChevronRight, BookOpen, Search, ArrowUpDown } from 'lucide-react';
 import { useRecipeContext } from '../../context/RecipeContext';
 import RecipeDetailView from './RecipeDetailView';
 import { cn } from '../../lib/utils';
@@ -13,6 +13,7 @@ import EmptyState from '../../components/ui/EmptyState';
 import { useUIStateContext } from '../../context/UIStateContext';
 import { Input } from '../../components/ui/input';
 import { AlertDialog, AlertDialogContent, AlertDialogHeader, AlertDialogTitle, AlertDialogDescription, AlertDialogFooter, AlertDialogCancel, AlertDialogAction } from '../../components/ui/alert-dialog';
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '../../components/ui/dropdown-menu';
 
 export default function RecipeManagerPage({ activeRecipe, setActiveRecipe, isDirty, setIsDirty }) {
     const { recipes, loading: recipesLoading, refetchRecipes } = useRecipeContext();
@@ -21,15 +22,20 @@ export default function RecipeManagerPage({ activeRecipe, setActiveRecipe, isDir
     
     const [pendingRecipe, setPendingRecipe] = useState(null);
     const [isUnsavedAlertOpen, setIsUnsavedAlertOpen] = useState(false);
+    // --- BARU: State untuk mengelola pengurutan ---
+    const [sortOrder, setSortOrder] = useState('name-asc');
 
     useEffect(() => {
         if (activeRecipe) {
             const fullRecipeObject = recipes.find(r => r.id === activeRecipe.id);
             if(fullRecipeObject) setActiveRecipe(fullRecipeObject);
         } else if (!recipesLoading && recipes.length > 0) {
-            setActiveRecipe(recipes[0]);
+            // Mengurutkan terlebih dahulu sebelum memilih resep pertama
+            const sortedRecipes = [...recipes].sort((a, b) => a.name.localeCompare(b.name));
+            setActiveRecipe(sortedRecipes[0]);
         }
-    }, [activeRecipe, recipes, recipesLoading, setActiveRecipe]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [recipesLoading]); // Hanya dijalankan saat loading selesai
 
     const handleRecipeSelect = (recipe) => {
         if (isDirty) {
@@ -58,33 +64,69 @@ export default function RecipeManagerPage({ activeRecipe, setActiveRecipe, isDir
         setActiveRecipe(updatedRecipe);
     };
 
-    const filteredRecipes = recipes.filter(recipe =>
-        recipe.name.toLowerCase().includes(searchTerm.toLowerCase())
-    );
+    // --- BARU: Logika untuk memfilter dan mengurutkan resep ---
+    const sortedAndFilteredRecipes = useMemo(() => {
+        let processedRecipes = recipes.filter(recipe =>
+            recipe.name.toLowerCase().includes(searchTerm.toLowerCase())
+        );
+
+        processedRecipes.sort((a, b) => {
+            switch (sortOrder) {
+                case 'name-asc':
+                    return a.name.localeCompare(b.name);
+                case 'name-desc':
+                    return b.name.localeCompare(a.name);
+                case 'date-desc':
+                    return new Date(b.created_at) - new Date(a.created_at);
+                case 'date-asc':
+                    return new Date(a.created_at) - new Date(b.created_at);
+                default:
+                    return 0;
+            }
+        });
+
+        return processedRecipes;
+    }, [recipes, searchTerm, sortOrder]);
 
     return (
         <div className="grid grid-cols-[320px_1fr] h-full bg-muted/30">
-            {/* PENAMBAHAN: Animasi tata letak awal */}
             <aside className="border-r bg-card flex flex-col h-full animate-slide-in-from-left">
-                <div className="p-4 border-b">
-                    <div className="relative">
-                        <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
-                        <Input 
-                            type="search" 
-                            placeholder="Cari resep..." 
-                            className="pl-8"
-                            value={searchTerm}
-                            onChange={(e) => setSearchTerm(e.target.value)}
-                        />
+                {/* --- PERUBAHAN: Header panel kiri --- */}
+                <div className="p-4 border-b flex flex-col gap-4">
+                    <div className="flex gap-2">
+                        <div className="relative flex-grow">
+                            <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+                            <Input 
+                                type="search" 
+                                placeholder="Cari resep..." 
+                                className="pl-8"
+                                value={searchTerm}
+                                onChange={(e) => setSearchTerm(e.target.value)}
+                            />
+                        </div>
+                        <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                                <Button variant="outline" size="icon"><ArrowUpDown className="h-4 w-4" /></Button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="end">
+                                <DropdownMenuItem onClick={() => setSortOrder('name-asc')}>Nama (A-Z)</DropdownMenuItem>
+                                <DropdownMenuItem onClick={() => setSortOrder('name-desc')}>Nama (Z-A)</DropdownMenuItem>
+                                <DropdownMenuItem onClick={() => setSortOrder('date-desc')}>Terbaru</DropdownMenuItem>
+                                <DropdownMenuItem onClick={() => setSortOrder('date-asc')}>Terlama</DropdownMenuItem>
+                            </DropdownMenuContent>
+                        </DropdownMenu>
                     </div>
+                    {/* --- PERUBAHAN: Tombol "Resep Baru" dipindahkan ke atas --- */}
+                    <Button className="w-full" onClick={() => setIsCreatingRecipe(true)}>
+                        <PlusCircle className="mr-2 h-4 w-4" /> Resep Baru
+                    </Button>
                 </div>
                 <div className="flex-grow overflow-y-auto">
                     {recipesLoading ? (
                         <div className="p-4"><SkeletonList count={8} /></div>
-                    ) : filteredRecipes.length > 0 ? (
+                    ) : sortedAndFilteredRecipes.length > 0 ? (
                         <div className="space-y-2 p-4">
-                            {filteredRecipes.map((recipe, index) => (
-                                // PENAMBAHAN: Animasi daftar bertingkat
+                            {sortedAndFilteredRecipes.map((recipe, index) => (
                                 <Card 
                                     key={recipe.id} 
                                     onClick={() => handleRecipeSelect(recipe)} 
@@ -109,14 +151,8 @@ export default function RecipeManagerPage({ activeRecipe, setActiveRecipe, isDir
                         </div>
                     )}
                 </div>
-                 <div className="p-4 border-t">
-                    <Button className="w-full" onClick={() => setIsCreatingRecipe(true)}>
-                        <PlusCircle className="mr-2 h-4 w-4" /> Resep Baru
-                    </Button>
-                </div>
             </aside>
             
-            {/* PENAMBAHAN: Animasi tata letak awal */}
             <main className="flex-grow overflow-y-auto animate-slide-in-from-right" style={{ animationDelay: '100ms' }}>
                 {activeRecipe ? (
                     <RecipeDetailView

@@ -1,11 +1,11 @@
 // Lokasi file: src/electron/main.js
-// Deskripsi: Menambahkan auto-updater, menu kustom, dan IPC untuk info aplikasi.
+// Deskripsi: Menambahkan perintah untuk memaksimalkan jendela saat aplikasi dimulai.
 
 const { app, dialog, BrowserWindow, ipcMain, Menu, shell } = require('electron');
 const path = require('path');
 const log = require('electron-log');
 const isDev = require('electron-is-dev');
-const { autoUpdater } = require('electron-updater'); // BARU: Impor autoUpdater
+const { autoUpdater } = require('electron-updater');
 const { initializeDatabase, getDbInstance, closeDatabase } = require('./database');
 const { registerIpcHandlers } = require('./ipcHandlers');
 const dns = require('dns');
@@ -18,7 +18,7 @@ process.env.NODE_TLS_REJECT_UNAUTHORIZED = '0';
 log.transports.file.resolvePathFn = () => path.join(app.getPath('userData'), 'logs/main.log');
 log.transports.file.level = 'info';
 Object.assign(console, log.functions);
-autoUpdater.logger = log; // BARU: Arahkan log updater ke file
+autoUpdater.logger = log;
 
 const rendererLogger = log.create({ logId: 'rendererLogger' });
 rendererLogger.transports.file.resolvePathFn = () => path.join(app.getPath('userData'), 'logs/renderer.log');
@@ -30,12 +30,13 @@ process.on('uncaughtException', (error) => {
     app.quit();
 });
 
-let mainWindow; // BARU: Deklarasikan mainWindow di scope yang lebih luas
+let mainWindow;
 
 function createWindow() {
     mainWindow = new BrowserWindow({
         width: 1280,
         height: 800,
+        frame: false,
         webPreferences: {
             preload: path.join(__dirname, '../../public/preload.js'),
             nodeIntegration: false,
@@ -52,8 +53,9 @@ function createWindow() {
     mainWindow.loadURL(startUrl);
 
     mainWindow.once('ready-to-show', () => {
+        // --- PERUBAHAN: Memaksimalkan jendela sebelum menampilkannya ---
+        mainWindow.maximize();
         mainWindow.show();
-        // BARU: Periksa pembaruan setelah jendela siap ditampilkan
         if (!isDev) {
             autoUpdater.checkForUpdatesAndNotify();
         }
@@ -64,47 +66,7 @@ function createWindow() {
     }
 }
 
-// --- FUNGSI BARU: Membuat menu aplikasi kustom ---
-function createMenu() {
-    const template = [
-        {
-            label: 'File',
-            submenu: [
-                { role: 'quit', label: 'Keluar' }
-            ]
-        },
-        {
-            label: 'Bantuan',
-            submenu: [
-                {
-                    label: 'Tentang DeFood',
-                    click: () => {
-                        // Kirim event ke renderer untuk membuka dialog "Tentang"
-                        mainWindow.webContents.send('open-about-dialog');
-                    }
-                },
-                {
-                    label: 'Periksa Pembaruan...',
-                    click: () => {
-                        autoUpdater.checkForUpdates();
-                    }
-                },
-                { type: 'separator' },
-                {
-                    label: 'Pelajari Lebih Lanjut',
-                    click: async () => {
-                        // Membuka link di browser default pengguna
-                        await shell.openExternal('https://github.com');
-                    }
-                }
-            ]
-        }
-    ];
-
-    const menu = Menu.buildFromTemplate(template);
-    Menu.setApplicationMenu(menu);
-}
-
+Menu.setApplicationMenu(null);
 
 log.info('Aplikasi dimulai...');
 
@@ -113,13 +75,25 @@ app.whenReady().then(async () => {
         await initializeDatabase();
         const db = getDbInstance();
         
-        // --- IPC HANDLER BARU ---
-        // IPC untuk mendapatkan versi aplikasi
-        ipcMain.handle('app:get-version', () => {
-            return app.getVersion();
+        ipcMain.on('app:minimize', () => mainWindow.minimize());
+        ipcMain.on('app:maximize', () => {
+            if (mainWindow.isMaximized()) {
+                mainWindow.unmaximize();
+            } else {
+                mainWindow.maximize();
+            }
         });
-        
-        // Daftarkan semua handler lainnya
+        ipcMain.on('app:close', () => mainWindow.close());
+        ipcMain.handle('app:get-version', () => app.getVersion());
+        ipcMain.handle('app:open-logs', () => {
+            const logPath = log.transports.file.resolvePath();
+            shell.openPath(logPath);
+        });
+        ipcMain.handle('app:check-for-updates', () => {
+            autoUpdater.checkForUpdates();
+        });
+        ipcMain.on('app:quit', () => app.quit());
+
         registerIpcHandlers(db);
         
         ipcMain.on('log-error-to-main', (event, error) => {
@@ -127,7 +101,6 @@ app.whenReady().then(async () => {
         });
 
         createWindow();
-        createMenu(); // BARU: Panggil fungsi untuk membuat menu
     } catch (error) {
         log.error('Fatal: Gagal menginisialisasi aplikasi.', error);
         dialog.showErrorBox('Error Aplikasi', 'Gagal menginisialisasi aplikasi. Lihat log untuk detail.');
@@ -135,14 +108,24 @@ app.whenReady().then(async () => {
     }
 });
 
-// --- LISTENER AUTO-UPDATER BARU ---
 autoUpdater.on('update-available', () => {
     log.info('Pembaruan tersedia.');
-    // Bisa mengirim notifikasi ke renderer jika mau
+    mainWindow.webContents.send('update-status', 'Pembaruan tersedia!');
 });
-
+autoUpdater.on('update-not-available', () => {
+    log.info('Tidak ada pembaruan.');
+    mainWindow.webContents.send('update-status', 'Versi terbaru');
+});
+autoUpdater.on('download-progress', (progressObj) => {
+    let log_message = "Kecepatan unduh: " + progressObj.bytesPerSecond;
+    log_message = log_message + ' - Diunduh ' + progressObj.percent + '%';
+    log_message = log_message + ' (' + progressObj.transferred + "/" + progressObj.total + ')';
+    log.info(log_message);
+    mainWindow.webContents.send('update-status', `Mengunduh pembaruan... ${Math.round(progressObj.percent)}%`);
+});
 autoUpdater.on('update-downloaded', () => {
     log.info('Pembaruan diunduh.');
+    mainWindow.webContents.send('update-status', 'Pembaruan siap diinstal');
     dialog.showMessageBox({
         type: 'info',
         title: 'Pembaruan Siap',
@@ -154,11 +137,10 @@ autoUpdater.on('update-downloaded', () => {
         }
     });
 });
-
 autoUpdater.on('error', (err) => {
     log.error('Error di autoUpdater. ' + err);
+    mainWindow.webContents.send('update-status', 'Gagal memeriksa pembaruan');
 });
-
 
 app.on('window-all-closed', () => {
     closeDatabase();

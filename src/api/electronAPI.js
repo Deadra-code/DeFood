@@ -1,5 +1,5 @@
 // Lokasi file: src/api/electronAPI.js
-// Deskripsi: Menambahkan fungsi helper untuk fitur baru.
+// Deskripsi: Menghapus fungsi 'onOpenAboutDialog' yang sudah tidak relevan.
 
 const isApiReady = () => {
     if (window.api) return true;
@@ -7,12 +7,23 @@ const isApiReady = () => {
     return false;
 };
 
-// --- FUNGSI BARU ---
+// --- FUNGSI BARU & DIPERBAIKI ---
 export const getAppVersion = () => isApiReady() ? window.api.getAppVersion() : Promise.resolve('N/A');
-export const onOpenAboutDialog = (callback) => isApiReady() ? window.api.onOpenAboutDialog(callback) : () => {};
+// PERBAIKAN: Menghapus onOpenAboutDialog
+
+// Kontrol Jendela
+export const minimize = () => isApiReady() && window.api.minimize();
+export const maximize = () => isApiReady() && window.api.maximize();
+export const close = () => isApiReady() && window.api.close();
+export const quit = () => isApiReady() && window.api.quit();
+
+// Menu Aplikasi & Pembaruan
+export const openLogs = () => isApiReady() ? window.api.openLogs() : Promise.reject(new Error("API belum siap"));
+export const checkForUpdates = () => isApiReady() ? window.api.checkForUpdates() : Promise.reject(new Error("API belum siap"));
+export const onUpdateStatus = (callback) => isApiReady() ? window.api.onUpdateStatus(callback) : () => {};
 
 
-// ... (semua fungsi lama tetap sama)
+// --- FUNGSI LAMA (TETAP SAMA) ---
 export const getSettings = () => isApiReady() ? window.api.getSettings() : Promise.reject(new Error("API belum siap"));
 export const saveSettings = (settings) => isApiReady() ? window.api.saveSettings(settings) : Promise.reject(new Error("API belum siap"));
 export const getGroundedFoodData = (foodName) => isApiReady() ? window.api.getGroundedFoodData(foodName) : Promise.reject(new Error("API belum siap"));

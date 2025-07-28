@@ -1,5 +1,5 @@
 // Lokasi file: src/App.js
-// Deskripsi: Diperbarui untuk menambahkan TooltipProvider di level atas untuk memperbaiki error.
+// Deskripsi: Mengintegrasikan TitleBar dan AppMenu ke dalam header utama.
 
 import React, { useState, useEffect } from 'react';
 import { Loader2, BookOpen, Database, Moon, Sun, Settings } from 'lucide-react';
@@ -14,7 +14,9 @@ import RecipeDialogManager from './features/Recipes/components/RecipeDialogManag
 import { useRecipeContext } from './context/RecipeContext';
 import { Button } from './components/ui/button';
 import { AlertDialog, AlertDialogContent, AlertDialogHeader, AlertDialogTitle, AlertDialogDescription, AlertDialogFooter, AlertDialogCancel, AlertDialogAction } from './components/ui/alert-dialog';
-import { TooltipProvider } from './components/ui/tooltip'; // --- PERBAIKAN: Impor TooltipProvider ---
+import { TooltipProvider } from './components/ui/tooltip';
+import TitleBar from './components/TitleBar'; // BARU
+import AppMenu from './components/AppMenu'; // BARU
 
 export default function App() {
     const { apiReady } = useAppContext();
@@ -69,17 +71,20 @@ export default function App() {
     }
 
     return (
-        // --- PERBAIKAN: Membungkus seluruh aplikasi dengan TooltipProvider ---
         <TooltipProvider>
             <ToasterProvider />
             <FoodDialogManager />
             <RecipeDialogManager onRecipeCreated={handleRecipeCreated} />
 
-            <div className="flex h-screen font-sans bg-background text-foreground">
+            <div className="flex h-screen font-sans bg-background text-foreground border rounded-lg overflow-hidden">
                 <Tabs value={activeTab} onValueChange={handleTabChange} className="w-full h-full flex flex-col">
-                    <header className="flex-shrink-0 border-b px-4 py-2 flex items-center justify-between">
-                        <div className="flex items-center gap-4">
-                            <h1 className="text-xl font-bold text-primary flex items-center gap-2">
+                    {/* --- PERUBAHAN: Header sekarang menjadi Title Bar yang bisa di-drag --- */}
+                    <header 
+                        className="flex-shrink-0 border-b px-2 py-2 flex items-center justify-between"
+                        style={{ WebkitAppRegion: 'drag' }}
+                    >
+                        <div className="flex items-center gap-4" style={{ WebkitAppRegion: 'no-drag' }}>
+                            <h1 className="text-xl font-bold text-primary flex items-center gap-2 ml-2">
                                <BookOpen/> DeFood
                             </h1>
                             <TabsList>
@@ -94,10 +99,16 @@ export default function App() {
                                 </TabsTrigger>
                             </TabsList>
                         </div>
-                        <Button variant="ghost" size="icon" onClick={toggleTheme} aria-label="Toggle theme">
-                            <Sun className="h-[1.2rem] w-[1.2rem] rotate-0 scale-100 transition-all dark:-rotate-90 dark:scale-0" />
-                            <Moon className="absolute h-[1.2rem] w-[1.2rem] rotate-90 scale-0 transition-all dark:rotate-0 dark:scale-100" />
-                        </Button>
+                        <div className="flex items-center gap-2">
+                            <div style={{ WebkitAppRegion: 'no-drag' }}>
+                                <Button variant="ghost" size="icon" className="h-8 w-8" onClick={toggleTheme} aria-label="Toggle theme">
+                                    <Sun className="h-4 w-4 rotate-0 scale-100 transition-all dark:-rotate-90 dark:scale-0" />
+                                    <Moon className="absolute h-4 w-4 rotate-90 scale-0 transition-all dark:rotate-0 dark:scale-100" />
+                                </Button>
+                            </div>
+                            <AppMenu />
+                            <TitleBar />
+                        </div>
                     </header>
                     
                     <main className="flex-grow overflow-hidden">

@@ -1,5 +1,5 @@
 // Lokasi file: src/features/Settings/SettingsPage.js
-// Deskripsi: Menambahkan tombol dan state untuk membuka dialog "Tentang Aplikasi".
+// Deskripsi: Menghapus listener 'onOpenAboutDialog' yang sudah tidak relevan.
 
 import React, { useState, useEffect } from 'react';
 import { Button } from '../../components/ui/button';
@@ -8,9 +8,9 @@ import { Label } from '../../components/ui/label';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from '../../components/ui/card';
 import { useSettingsContext } from '../../context/SettingsContext';
 import { useNotifier } from '../../hooks/useNotifier';
-import { Loader2, CheckCircle, XCircle, Info } from 'lucide-react'; // BARU: Impor Info
+import { Loader2, CheckCircle, XCircle, Info } from 'lucide-react';
 import * as api from '../../api/electronAPI';
-import AboutDialog from '../../components/AboutDialog'; // BARU: Impor dialog
+import AboutDialog from '../../components/AboutDialog';
 
 export default function SettingsPage() {
     const { settings, saveSettings, loading } = useSettingsContext();
@@ -19,24 +19,14 @@ export default function SettingsPage() {
     const [isSaving, setIsSaving] = useState(false);
     const [isTesting, setIsTesting] = useState(false);
     const [testStatus, setTestStatus] = useState(null);
-    const [isAboutDialogOpen, setIsAboutDialogOpen] = useState(false); // BARU: State untuk dialog
+    const [isAboutDialogOpen, setIsAboutDialogOpen] = useState(false);
 
     useEffect(() => {
         setFormState(settings);
     }, [settings]);
 
-    // BARU: Listener untuk membuka dialog dari menu utama
-    useEffect(() => {
-        const removeListener = api.onOpenAboutDialog(() => {
-            setIsAboutDialogOpen(true);
-        });
-        // Cleanup listener saat komponen unmount
-        return () => {
-            if (typeof removeListener === 'function') {
-                removeListener();
-            }
-        };
-    }, []);
+    // --- PERBAIKAN: Menghapus useEffect yang memanggil onOpenAboutDialog ---
+    // Listener ini tidak lagi diperlukan karena menu bawaan sudah dihilangkan.
 
     const handleChange = (key, value) => {
         setFormState(prev => ({ ...prev, [key]: value }));
@@ -76,7 +66,6 @@ export default function SettingsPage() {
 
     return (
         <>
-            {/* BARU: Render dialog */}
             <AboutDialog isOpen={isAboutDialogOpen} onOpenChange={setIsAboutDialogOpen} />
 
             <div className="p-6 lg:p-8 h-full flex flex-col items-center overflow-y-auto">
@@ -86,7 +75,6 @@ export default function SettingsPage() {
                             <h1 className="text-3xl font-bold">Pengaturan</h1>
                             <p className="text-muted-foreground">Kelola preferensi dan parameter bisnis Anda di sini.</p>
                         </div>
-                        {/* BARU: Tombol Tentang Aplikasi */}
                         <Button variant="outline" onClick={() => setIsAboutDialogOpen(true)}>
                             <Info className="mr-2 h-4 w-4" /> Tentang Aplikasi
                         </Button>

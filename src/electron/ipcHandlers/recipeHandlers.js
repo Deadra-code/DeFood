@@ -1,5 +1,5 @@
 // Lokasi file: src/electron/ipcHandlers/recipeHandlers.js
-// Deskripsi: Handler untuk semua operasi terkait resep, dengan prompt AI yang sudah diterjemahkan.
+// Deskripsi: Handler untuk semua operasi terkait resep, dengan prompt AI yang sudah diterjemahkan dan alur kerja penyimpanan terpadu.
 
 const log = require('electron-log');
 const { ingredientBulkSchema, updateIngredientSchema, updateIngredientOrderSchema, foodSchema } = require('../schemas.cjs');
@@ -10,7 +10,6 @@ const { getGroundedFoodDataWithConversions, updateFoodInDb } = require('./foodHa
 
 const httpsAgent = new https.Agent({ family: 4 });
 
-// --- PERUBAHAN: Prompt AI telah diterjemahkan ke Bahasa Indonesia ---
 async function callGoogleAI(apiKey, prompt, isJsonOutput = true) {
     const url = getAiApiUrl(apiKey);
     const payload = { contents: [{ parts: [{ text: prompt }] }] };
@@ -31,7 +30,6 @@ async function callGoogleAI(apiKey, prompt, isJsonOutput = true) {
     }
 }
 
-// --- PERUBAHAN: Prompt AI telah diterjemahkan ke Bahasa Indonesia ---
 async function getSpecificConversion(apiKey, foodName, unit) {
     const prompt = `
         Berapa berat tipikal dalam gram untuk 1 "${unit}" dari "${foodName}"?
@@ -67,7 +65,7 @@ function registerRecipeHandlers(ipcMain, db) {
         return apiKey;
     };
 
-    ipcMain.handle('db:get-recipes', async () => db.allAsync("SELECT * FROM recipes ORDER BY name"));
+    ipcMain.handle('db:get-recipes', async () => db.allAsync("SELECT * FROM recipes ORDER BY name ASC"));
     
     ipcMain.handle('db:add-recipe', async (event, recipe) => {
         const sql = "INSERT INTO recipes (name, description, instructions, created_at) VALUES (?, ?, ?, ?)";
@@ -77,10 +75,39 @@ function registerRecipeHandlers(ipcMain, db) {
     });
 
     ipcMain.handle('db:update-recipe-details', async (event, recipe) => {
-        const sql = "UPDATE recipes SET name = ?, description = ?, instructions = ? WHERE id = ?";
-        const params = [recipe.name, recipe.description, recipe.instructions, recipe.id];
-        await db.runAsync(sql, params);
-        return { success: true };
+        const { id, name, description, instructions, ingredients } = recipe;
+
+        await db.runAsync('BEGIN TRANSACTION');
+        try {
+            // 1. Update detail dasar di tabel recipes
+            const recipeSql = "UPDATE recipes SET name = ?, description = ?, instructions = ? WHERE id = ?";
+            await db.runAsync(recipeSql, [name, description, instructions, id]);
+
+            // 2. Hapus semua bahan lama yang terkait dengan resep ini
+            await db.runAsync("DELETE FROM recipe_ingredients WHERE recipe_id = ?", [id]);
+
+            // 3. Masukkan kembali semua bahan (yang mungkin sudah diubah) dengan urutan baru
+            if (ingredients && ingredients.length > 0) {
+                const insertSql = "INSERT INTO recipe_ingredients (recipe_id, food_id, quantity, unit, display_order) VALUES (?, ?, ?, ?, ?)";
+                for (let i = 0; i < ingredients.length; i++) {
+                    const ing = ingredients[i];
+                    // Pastikan food_id diambil dari objek food yang bersarang
+                    const foodId = ing.food ? ing.food.id : ing.food_id;
+                    if (!foodId) {
+                        throw new Error(`Bahan '${ing.food.name}' tidak memiliki ID yang valid.`);
+                    }
+                    await db.runAsync(insertSql, [id, foodId, ing.quantity, ing.unit, i]);
+                }
+            }
+
+            await db.runAsync('COMMIT');
+            log.info(`Resep ${id} berhasil diperbarui secara keseluruhan.`);
+            return { success: true };
+        } catch (err) {
+            await db.runAsync('ROLLBACK');
+            log.error(`Gagal memperbarui resep ${id} secara keseluruhan:`, err);
+            throw err; // Lempar error kembali ke frontend
+        }
     });
 
     ipcMain.handle('db:delete-recipe', async (event, recipeId) => {
@@ -206,7 +233,6 @@ function registerRecipeHandlers(ipcMain, db) {
         }
     });
 
-    // --- PERUBAHAN: Prompt AI telah diterjemahkan ke Bahasa Indonesia ---
     ipcMain.handle('ai:suggest-recipe-names', async (event, ingredients) => {
         const apiKey = await getApiKey();
         const ingredientNames = ingredients.map(ing => ing.food.name).join(', ');
@@ -215,7 +241,6 @@ function registerRecipeHandlers(ipcMain, db) {
         return result.names || [];
     });
 
-    // --- PERUBAHAN: Prompt AI telah diterjemahkan ke Bahasa Indonesia ---
     ipcMain.handle('ai:generate-description', async (event, { recipeName, ingredients }) => {
         const apiKey = await getApiKey();
         const ingredientNames = ingredients.map(ing => ing.food.name).join(', ');
@@ -224,7 +249,6 @@ function registerRecipeHandlers(ipcMain, db) {
         return result.description || "";
     });
 
-    // --- PERUBAHAN: Prompt AI telah diterjemahkan ke Bahasa Indonesia ---
     ipcMain.handle('ai:refine-description', async (event, existingDescription) => {
         const apiKey = await getApiKey();
         const prompt = `Sempurnakan deskripsi resep ini dalam Bahasa Indonesia: "${existingDescription}". Kembalikan objek JSON dengan kunci "description" yang berisi teks yang telah disempurnakan.`;
@@ -232,7 +256,6 @@ function registerRecipeHandlers(ipcMain, db) {
         return result.description || "";
     });
     
-    // --- PERUBAHAN: Prompt AI telah diterjemahkan ke Bahasa Indonesia ---
     ipcMain.handle('ai:draft-ingredients', async (event, { recipeName, servings }) => {
         const apiKey = await getApiKey();
         const safeServings = servings > 0 ? servings : 1;
@@ -251,7 +274,6 @@ function registerRecipeHandlers(ipcMain, db) {
         return result.ingredients || [];
     });
 
-    // --- PERUBAHAN: Prompt AI telah diterjemahkan ke Bahasa Indonesia ---
     ipcMain.handle('ai:generate-instructions', async (event, { recipeName, ingredients }) => {
         const apiKey = await getApiKey();
         const ingredientNames = ingredients.map(ing => `${ing.food.name} (${ing.quantity} ${ing.unit})`).join(', ');

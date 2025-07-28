@@ -1,5 +1,5 @@
 /* Lokasi file: src/index.css */
-/* Deskripsi: Disederhanakan, menghapus variabel tema dan ukuran font kustom. */
+/* Deskripsi: Konfigurasi dasar Tailwind, variabel tema, dan gaya scrollbar kustom. */
 
 @tailwind base;
 @tailwind components;
@@ -7,7 +7,7 @@
 
 @layer base {
   :root {
-    /* Palet warna default (hijau) */
+    /* Palet warna default (terang) */
     --background: 0 0% 100%;
     --foreground: 224 71.4% 4.1%;
     --card: 0 0% 100%;
@@ -31,7 +31,7 @@
   }
 
   .dark {
-    /* Variabel dark mode bisa ditambahkan di sini jika diperlukan nanti */
+    /* Palet warna untuk tema gelap */
     --background: 224 71.4% 4.1%;
     --foreground: 210 20% 98%;
     --card: 224 71.4% 4.1%;
@@ -58,7 +58,42 @@
   * {
     @apply border-border;
   }
+  /* Menghilangkan margin default dan mengatur background */
+  html, body {
+    margin: 0;
+    padding: 0;
+    height: 100%;
+    width: 100%;
+    overflow: hidden;
+    background-color: transparent; /* Penting untuk jendela tanpa bingkai */
+  }
   body {
     @apply bg-background text-foreground;
+    font-feature-settings: "rlig" 1, "calt" 1;
   }
+}
+
+/* --- Gaya Scrollbar Kustom --- */
+/* Targetkan semua scrollbar di aplikasi */
+::-webkit-scrollbar {
+  width: 8px; /* Membuat scrollbar lebih ramping */
+  height: 8px;
+}
+
+/* Bagian track (latar belakang scrollbar) */
+::-webkit-scrollbar-track {
+  background: hsl(var(--secondary) / 0.5); /* Warna track yang sedikit transparan */
+  border-radius: 10px;
+}
+
+/* Bagian thumb (handle yang bisa di-drag) */
+::-webkit-scrollbar-thumb {
+  background: hsl(var(--muted-foreground) / 0.5); /* Warna thumb yang lembut */
+  border-radius: 10px;
+  transition: background 0.2s ease-in-out; /* Animasi transisi warna */
+}
+
+/* Efek saat kursor mouse berada di atas thumb */
+::-webkit-scrollbar-thumb:hover {
+  background: hsl(var(--primary)); /* Warna berubah menjadi warna primer saat hover */
 }

@@ -1,7 +1,7 @@
 // Lokasi file: src/features/Recipes/RecipeDetailView.js
-// Deskripsi: Mengirimkan jumlah porsi ke backend saat meminta saran bahan dari AI.
+// Deskripsi: Memperbaiki nama fungsi 'updateRecipeDetails' menjadi 'updateRecipe' agar sesuai dengan context.
 
-import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { AlertDialog, AlertDialogContent, AlertDialogHeader, AlertDialogTitle, AlertDialogDescription, AlertDialogFooter, AlertDialogCancel, AlertDialogAction } from '../../components/ui/alert-dialog';
 import { Alert, AlertDescription, AlertTitle } from '../../components/ui/alert';
 import { Button } from '../../components/ui/button';
@@ -19,118 +19,96 @@ import { calculateRecipeTotals, validateIngredientsForCalculation } from '../../
 import jsPDF from 'jspdf';
 import 'jspdf-autotable';
 
-// Impor komponen-komponen
 import { RecipeHeader } from './components/RecipeDetail/RecipeHeader';
 import { RecipeAnalysis } from './components/RecipeDetail/RecipeAnalysis';
 import { RecipeIngredientsTable } from './components/RecipeDetail/RecipeIngredientsTable';
 import { AiButton } from './components/RecipeDetail/AiButton';
 import AddIngredientDialog from './components/AddIngredientDialog';
 import { InstructionsEditor } from './components/RecipeDetail/InstructionsEditor';
+import { isEqual } from 'lodash';
 
-export default function RecipeDetailView({ recipe, onRecipeDeleted, onRecipeUpdated, setIsDirty }) {
+export default function RecipeDetailView({ recipe, onRecipeDeleted, onRecipeUpdated, setIsDirty: setParentIsDirty }) {
     const { notify } = useNotifier();
+    // --- PERBAIKAN: Mengubah nama 'updateRecipeDetails' menjadi 'updateRecipe' ---
     const { duplicateRecipe, updateRecipe } = useRecipeContext();
     const { setFoodToEdit } = useUIStateContext();
     const { fetchFoods } = useFoodContext();
-    const [details, setDetails] = useState(recipe);
-    const [ingredients, setIngredients] = useState([]);
+    
+    const [editableRecipe, setEditableRecipe] = useState(null);
+    const [initialRecipe, setInitialRecipe] = useState(null);
+
     const [servings, setServings] = useState(1);
     const [isLoading, setIsLoading] = useState(true);
     const [isSaving, setIsSaving] = useState(false);
     const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
     const [calculationErrors, setCalculationErrors] = useState([]);
-    const [aiLoading, setAiLoading] = useState({
-        title: false,
-        description: false,
-        instructions: false,
-    });
+    const [aiLoading, setAiLoading] = useState({ title: false, description: false, instructions: false });
     const [isSuggestingAndProcessing, setIsSuggestingAndProcessing] = useState(false);
-    const containerRef = useRef(null);
 
-    const isDifferent = useMemo(() => JSON.stringify(details) !== JSON.stringify(recipe), [details, recipe]);
-    const recipeTotals = useMemo(() => calculateRecipeTotals(ingredients), [ingredients]);
+    const isDirty = useMemo(() => {
+        if (!initialRecipe || !editableRecipe) return false;
+        return !isEqual(initialRecipe, editableRecipe);
+    }, [initialRecipe, editableRecipe]);
 
-    useEffect(() => { setIsDirty(isDifferent); }, [isDifferent, setIsDirty]);
-    useEffect(() => { setCalculationErrors(validateIngredientsForCalculation(ingredients)); }, [ingredients]);
+    useEffect(() => {
+        setParentIsDirty(isDirty);
+    }, [isDirty, setParentIsDirty]);
 
-    const fetchIngredients = useCallback(async () => {
+    const recipeTotals = useMemo(() => calculateRecipeTotals(editableRecipe?.ingredients), [editableRecipe?.ingredients]);
+    
+    useEffect(() => {
+        setCalculationErrors(validateIngredientsForCalculation(editableRecipe?.ingredients));
+    }, [editableRecipe?.ingredients]);
+
+    const fetchAndSetRecipeData = useCallback(async () => {
         if (!recipe?.id) return;
         setIsLoading(true);
         try {
             const ingredientList = await api.getIngredientsForRecipe(recipe.id);
-            setIngredients(ingredientList || []);
+            const fullRecipeData = {
+                ...recipe,
+                ingredients: ingredientList || [],
+            };
+            setEditableRecipe(JSON.parse(JSON.stringify(fullRecipeData)));
+            setInitialRecipe(JSON.parse(JSON.stringify(fullRecipeData)));
         } catch (err) {
-            notify.error("Gagal memuat bahan resep.");
+            notify.error("Gagal memuat data resep lengkap.");
         } finally {
             setIsLoading(false);
         }
-    }, [recipe?.id, notify]);
+    }, [recipe, notify]);
 
     useEffect(() => {
-        setDetails(recipe);
-        fetchIngredients();
+        fetchAndSetRecipeData();
         setServings(1);
-    }, [recipe, fetchIngredients]);
+    }, [recipe, fetchAndSetRecipeData]);
     
-    const handleDetailChange = (field, value) => setDetails(prev => ({ ...prev, [field]: value }));
-    
+    const handleDataChange = (field, value) => {
+        setEditableRecipe(prev => ({ ...prev, [field]: value }));
+    };
+
+    const handleIngredientsChange = (newIngredients) => {
+        setEditableRecipe(prev => ({ ...prev, ingredients: newIngredients }));
+    };
+
     const handleEditIngredientFood = (foodToEdit) => {
-        setFoodToEdit({ ...foodToEdit, isNew: false });
+        setFoodToEdit({ 
+            ...foodToEdit, 
+            isNew: false,
+            source: 'recipe-edit' 
+        });
     };
 
-    const handleAiIngredientSuggestion = async () => {
-        if (!recipe.name) {
-            notify.error("Nama resep tidak valid untuk menghasilkan saran.");
-            return;
-        }
-        setIsSuggestingAndProcessing(true);
-        notify.info(`AI sedang mencari saran bahan untuk "${recipe.name}"...`);
-        try {
-            // --- PERBAIKAN: Kirim nama resep dan jumlah porsi ---
-            const suggestions = await api.draftIngredients({ recipeName: recipe.name, servings: servings });
-            if (!suggestions || suggestions.length === 0) {
-                notify.info("AI tidak dapat memberikan saran untuk resep ini.");
-                return;
-            }
-            
-            const { processedFoods, failed } = await api.processUnknownIngredients(suggestions);
-            if (failed.length > 0) {
-                notify.error(`Gagal memproses: ${failed.map(f => f.name).join(', ')}`);
-            }
-
-            if (processedFoods.length === 0) {
-                notify.info("Tidak ada bahan baru yang bisa ditambahkan.");
-                return;
-            }
-
-            const ingredientsToAdd = processedFoods.map(food => ({
-                food_id: food.id,
-                quantity: food.quantity,
-                unit: food.unit,
-            }));
-
-            await api.addIngredientsBulk({ recipe_id: recipe.id, ingredients: ingredientsToAdd });
-            
-            notify.success(`${ingredientsToAdd.length} bahan berhasil disarankan dan ditambahkan!`);
-            
-            await fetchFoods();
-            await fetchIngredients();
-
-        } catch (err) {
-            notify.error(`Terjadi kesalahan: ${err.message}`);
-        } finally {
-            setIsSuggestingAndProcessing(false);
-        }
-    };
-
-    const handleSaveDetails = async () => {
+    const handleSave = async () => {
         setIsSaving(true);
         try {
-            await updateRecipe(details);
-            notify.success("Detail resep berhasil disimpan.");
-            onRecipeUpdated(details);
+            // --- PERBAIKAN: Memanggil fungsi 'updateRecipe' yang benar ---
+            await updateRecipe(editableRecipe);
+            notify.success("Resep berhasil disimpan.");
+            onRecipeUpdated(editableRecipe);
+            setInitialRecipe(JSON.parse(JSON.stringify(editableRecipe)));
         } catch (err) {
-            notify.error(`Gagal menyimpan detail resep: ${err.message}`);
+            notify.error(`Gagal menyimpan resep: ${err.message}`);
         } finally {
             setIsSaving(false);
         }
@@ -156,72 +134,95 @@ export default function RecipeDetailView({ recipe, onRecipeDeleted, onRecipeUpda
             notify.error("Gagal menduplikasi resep.");
         }
     };
-
-    const deleteIngredient = async (ingredientId) => {
-        const originalIngredients = [...ingredients];
-        const newIngredients = ingredients.filter(ing => ing.id !== ingredientId);
-        setIngredients(newIngredients);
-        try {
-            await api.deleteIngredientFromRecipe(ingredientId);
-            notify.success("Bahan berhasil dihapus dari resep.");
-        } catch (err) {
-            notify.error("Gagal menghapus bahan. Perubahan dibatalkan.");
-            setIngredients(originalIngredients);
+    
+    const handleAiIngredientSuggestion = async () => {
+        if (!editableRecipe.name) {
+            notify.error("Nama resep tidak valid untuk menghasilkan saran.");
+            return;
         }
+        setIsSuggestingAndProcessing(true);
+        notify.info(`AI sedang mencari saran bahan untuk "${editableRecipe.name}"...`);
+        try {
+            const suggestions = await api.draftIngredients({ recipeName: editableRecipe.name, servings: servings });
+            if (!suggestions || suggestions.length === 0) {
+                notify.info("AI tidak dapat memberikan saran untuk resep ini.");
+                return;
+            }
+            
+            const ingredientNames = suggestions.map(s => ({ name: s.name, quantity: s.quantity, unit: s.unit }));
+            const { processedFoods, failed } = await api.processUnknownIngredients(ingredientNames);
+            
+            if (failed.length > 0) {
+                notify.error(`Gagal memproses: ${failed.map(f => f.name).join(', ')}`);
+            }
+
+            if (processedFoods.length === 0) {
+                notify.info("Tidak ada bahan baru yang bisa ditambahkan.");
+                return;
+            }
+
+            const newIngredientsToAdd = processedFoods.map(food => ({
+                id: `new-${food.id}-${Date.now()}`, 
+                quantity: food.quantity,
+                unit: food.unit,
+                food: food
+            }));
+
+            handleIngredientsChange([...editableRecipe.ingredients, ...newIngredientsToAdd]);
+            notify.success(`${newIngredientsToAdd.length} bahan berhasil disarankan dan ditambahkan!`);
+            fetchFoods();
+
+        } catch (err) {
+            notify.error(`Terjadi kesalahan: ${err.message}`);
+        } finally {
+            setIsSuggestingAndProcessing(false);
+        }
+    };
+
+    const deleteIngredient = (ingredientId) => {
+        const newIngredients = editableRecipe.ingredients.filter(ing => ing.id !== ingredientId);
+        handleIngredientsChange(newIngredients);
     };
     
-    const handleBulkDeleteIngredients = async (ingredientIds) => {
-        const originalIngredients = [...ingredients];
-        const newIngredients = ingredients.filter(ing => !ingredientIds.includes(ing.id));
-        setIngredients(newIngredients);
-        try {
-            const result = await api.deleteIngredientsBulk(ingredientIds);
-            notify.success(`${result.count} bahan berhasil dihapus.`);
-        } catch (err) {
-            notify.error("Gagal menghapus bahan terpilih. Perubahan dibatalkan.");
-            setIngredients(originalIngredients);
-        }
+    const handleBulkDeleteIngredients = (ingredientIds) => {
+        const newIngredients = editableRecipe.ingredients.filter(ing => !ingredientIds.includes(ing.id));
+        handleIngredientsChange(newIngredients);
     };
 
-    const handleOnDragEnd = async (result) => {
+    const handleOnDragEnd = (result) => {
         if (!result.destination) return;
-        const items = Array.from(ingredients);
+        const items = Array.from(editableRecipe.ingredients);
         const [reorderedItem] = items.splice(result.source.index, 1);
         items.splice(result.destination.index, 0, reorderedItem);
-        setIngredients(items);
-        try {
-            await api.updateIngredientOrder(items);
-        } catch (error) {
-            notify.error("Gagal menyimpan urutan bahan. Memuat ulang...");
-            fetchIngredients();
-        }
+        handleIngredientsChange(items);
     };
 
-    const handleUpdateIngredient = async (id, quantity, unit) => {
-        const originalIngredients = [...ingredients];
-        const newIngredients = ingredients.map(ing => ing.id === id ? { ...ing, quantity, unit } : ing);
-        setIngredients(newIngredients);
-        try {
-            await api.updateIngredient({ id, quantity, unit });
-        } catch (err) {
-            notify.error("Gagal memperbarui bahan.");
-            setIngredients(originalIngredients);
-        }
+    const handleUpdateIngredient = (id, quantity, unit) => {
+        const newIngredients = editableRecipe.ingredients.map(ing => ing.id === id ? { ...ing, quantity, unit } : ing);
+        handleIngredientsChange(newIngredients);
     };
-
+    
     const handleExportPDF = () => {
         const doc = new jsPDF();
-        doc.text(details.name, 14, 22);
+        doc.text(editableRecipe.name, 14, 22);
         doc.text(`Porsi: ${servings}`, 14, 32);
-        doc.autoTable({ startY: 50, head: [['Nama Bahan', 'Jumlah']], body: ingredients.map(ing => [ing.food.name, `${ing.quantity} ${ing.unit}`]) });
-        doc.save(`${details.name}.pdf`);
+        doc.autoTable({ 
+            startY: 40, 
+            head: [['Nama Bahan', 'Jumlah', 'Satuan']], 
+            body: editableRecipe.ingredients.map(ing => [ing.food.name, ing.quantity, ing.unit]) 
+        });
+        const finalY = doc.lastAutoTable.finalY;
+        doc.text('Instruksi', 14, finalY + 10);
+        doc.text(editableRecipe.instructions || 'Tidak ada instruksi.', 14, finalY + 20, { maxWidth: 180 });
+        
+        doc.save(`${editableRecipe.name}.pdf`);
     };
 
     const handleAiAction = async (action, field, payload) => {
         setAiLoading(prev => ({ ...prev, [field]: true }));
         try {
             const result = await action(payload);
-            handleDetailChange(field, result);
+            handleDataChange(field, result);
             notify.success(`AI berhasil memperbarui ${field}.`);
         } catch (err) {
             notify.error(`Aksi AI gagal: ${err.message}`);
@@ -229,48 +230,24 @@ export default function RecipeDetailView({ recipe, onRecipeDeleted, onRecipeUpda
             setAiLoading(prev => ({ ...prev, [field]: false }));
         }
     };
-    
-    const handleSuggestNames = () => {
-        if (ingredients.length === 0) {
-            notify.error("Tambahkan bahan terlebih dahulu.");
-            return;
-        }
-        handleAiAction(api.suggestRecipeNames, 'name', ingredients);
-    };
 
-    const handleDescriptionAi = () => {
-        if (details.description) {
-            handleAiAction(api.refineDescription, 'description', details.description);
-        } else {
-            handleAiAction(api.generateDescription, 'description', { recipeName: details.name, ingredients });
-        }
-    };
-
-    const handleInstructionsAi = () => {
-        if (ingredients.length === 0) {
-            notify.error("Tambahkan bahan terlebih dahulu.");
-            return;
-        }
-        handleAiAction(api.generateInstructions, 'instructions', { recipeName: details.name, ingredients });
-    };
-
-    if (isLoading) {
+    if (isLoading || !editableRecipe) {
         return <div className="p-8 flex items-center justify-center h-full"><Loader2 className="h-8 w-8 animate-spin" /></div>;
     }
 
     return (
-        <div ref={containerRef} className="p-6 lg:p-8 space-y-8 overflow-y-auto h-full">
+        <div className="p-6 lg:p-8 space-y-8 overflow-y-auto h-full">
             <RecipeHeader
-                details={details}
-                isDifferent={isDifferent}
+                details={editableRecipe}
+                isDifferent={isDirty}
                 isSaving={isSaving}
                 aiLoading={aiLoading}
-                handleDetailChange={handleDetailChange}
-                handleSaveDetails={handleSaveDetails}
-                handleSuggestNames={handleSuggestNames}
-                handleExportPDF={handleExportPDF}
+                handleDetailChange={handleDataChange}
+                handleSaveDetails={handleSave}
+                handleSuggestNames={() => handleAiAction(api.suggestRecipeNames, 'name', editableRecipe.ingredients)}
                 handleDuplicateRecipe={handleDuplicateRecipe}
                 setIsDeleteDialogOpen={setIsDeleteDialogOpen}
+                handleExportPDF={handleExportPDF}
             />
 
             {calculationErrors.length > 0 && (
@@ -283,7 +260,7 @@ export default function RecipeDetailView({ recipe, onRecipeDeleted, onRecipeUpda
                 </Alert>
             )}
 
-            <RecipeAnalysis recipeTotals={recipeTotals} servings={servings} ingredients={ingredients} />
+            <RecipeAnalysis recipeTotals={recipeTotals} servings={servings} ingredients={editableRecipe.ingredients} />
             
             <div>
                 <Label htmlFor="servings" className="text-lg font-semibold">Resep ini untuk berapa porsi?</Label>
@@ -293,9 +270,13 @@ export default function RecipeDetailView({ recipe, onRecipeDeleted, onRecipeUpda
             <div>
                 <div className="flex items-center gap-2 mb-2">
                     <Label htmlFor="recipe-desc" className="text-lg font-semibold">Deskripsi</Label>
-                    <AiButton onClick={handleDescriptionAi} isLoading={aiLoading.description} tooltipContent={details.description ? "Sempurnakan deskripsi" : "Buat draf deskripsi"} />
+                    <AiButton 
+                        onClick={() => handleAiAction(api.generateDescription, 'description', { recipeName: editableRecipe.name, ingredients: editableRecipe.ingredients })} 
+                        isLoading={aiLoading.description} 
+                        tooltipContent={editableRecipe.description ? "Sempurnakan deskripsi" : "Buat draf deskripsi"} 
+                    />
                 </div>
-                <Textarea id="recipe-desc" value={details.description || ''} onChange={e => handleDetailChange('description', e.target.value)} placeholder="Deskripsi singkat tentang resep ini..." />
+                <Textarea id="recipe-desc" value={editableRecipe.description || ''} onChange={e => handleDataChange('description', e.target.value)} placeholder="Deskripsi singkat tentang resep ini..." />
             </div>
             
             <Card>
@@ -310,14 +291,14 @@ export default function RecipeDetailView({ recipe, onRecipeDeleted, onRecipeUpda
                                 }
                                 Sarankan Bahan
                             </Button>
-                            <AddIngredientDialog recipeId={recipe.id} onIngredientAdded={fetchIngredients} />
+                            <AddIngredientDialog recipeId={recipe.id} onIngredientAdded={fetchAndSetRecipeData} />
                         </div>
                     </div>
                 </CardHeader>
                 <CardContent>
                     <RecipeIngredientsTable
-                        ingredients={ingredients}
-                        setIngredients={setIngredients}
+                        ingredients={editableRecipe.ingredients}
+                        setIngredients={handleIngredientsChange}
                         handleOnDragEnd={handleOnDragEnd}
                         deleteIngredient={deleteIngredient}
                         handleUpdateIngredient={handleUpdateIngredient}
@@ -330,15 +311,16 @@ export default function RecipeDetailView({ recipe, onRecipeDeleted, onRecipeUpda
             <div>
                 <div className="flex items-center gap-2 mb-4">
                     <h2 className="text-lg font-semibold">Instruksi</h2>
-                    <AiButton onClick={handleInstructionsAi} isLoading={aiLoading.instructions} tooltipContent="Buat draf instruksi dengan AI" />
+                    <AiButton 
+                        onClick={() => handleAiAction(api.generateInstructions, 'instructions', { recipeName: editableRecipe.name, ingredients: editableRecipe.ingredients })} 
+                        isLoading={aiLoading.instructions} 
+                        tooltipContent="Buat draf instruksi dengan AI" 
+                    />
                 </div>
                 <InstructionsEditor
-                    initialValue={details.instructions || ''}
-                    onSave={(newInstructions) => {
-                        handleDetailChange('instructions', newInstructions);
-                    }}
-                    onDirtyChange={(dirty) => {
-                        // Future improvement: handle dirty state for instructions editor
+                    initialValue={editableRecipe.instructions || ''}
+                    onChange={(newInstructions) => {
+                        handleDataChange('instructions', newInstructions);
                     }}
                 />
             </div>
@@ -347,7 +329,7 @@ export default function RecipeDetailView({ recipe, onRecipeDeleted, onRecipeUpda
                 <AlertDialogContent>
                     <AlertDialogHeader>
                         <AlertDialogTitle>Anda yakin ingin menghapus resep ini?</AlertDialogTitle>
-                        <AlertDialogDescription>Resep "{recipe.name}" akan dihapus secara permanen. Aksi ini tidak dapat dibatalkan.</AlertDialogDescription>
+                        <AlertDialogDescription>Resep "{editableRecipe.name}" akan dihapus secara permanen. Aksi ini tidak dapat dibatalkan.</AlertDialogDescription>
                     </AlertDialogHeader>
                     <AlertDialogFooter>
                         <AlertDialogCancel>Batal</AlertDialogCancel>

@@ -1,5 +1,5 @@
 // Lokasi file: src/features/FoodDatabase/FoodForm.jsx
-// Deskripsi: Disesuaikan untuk menerapkan data kategori & harga dari AI.
+// Deskripsi: Memperbaiki alignment konten di dalam modal agar terpusat.
 
 import React, { useState, useEffect } from 'react';
 import { Button } from '../../components/ui/button';
@@ -11,7 +11,7 @@ import { foodSchema } from '../../lib/schemas';
 import * as api from '../../api/electronAPI';
 import { useNotifier } from '../../hooks/useNotifier';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../../components/ui/select';
-import { Alert, AlertDescription, AlertTitle } from '../../components/ui/alert';
+import { Alert, AlertDescription } from '../../components/ui/alert';
 import { Card, CardContent, CardHeader, CardTitle } from '../../components/ui/card';
 
 const unitOptions = ['g', 'kg', 'ons', 'ml', 'l', 'sdm', 'sdt', 'butir', 'pcs', 'siung', 'buah', 'lembar', 'batang'];
@@ -74,7 +74,6 @@ const FoodForm = ({ food, onSave, onCancel, isSaving }) => {
         }
     };
 
-    // --- PENINGKATAN: Terapkan data kategori & harga dari AI ---
     const handleApplyAiData = () => {
         if (!aiResult || aiResult.error) return;
         const { nutrition, category, price_per_100g } = aiResult;
@@ -110,18 +109,18 @@ const FoodForm = ({ food, onSave, onCancel, isSaving }) => {
 
     return (
         <form onSubmit={(e) => { e.preventDefault(); handleSubmit(); }}>
-            <DialogHeader>
+            <DialogHeader className="text-center">
                 <DialogTitle>{food?.id ? 'Edit Bahan Makanan' : 'Tambah Bahan Makanan Baru'}</DialogTitle>
                 <DialogDescription>
                     Isi detail di bawah atau gunakan Asisten AI untuk mengisi data nutrisi, kategori, & estimasi harga.
                 </DialogDescription>
             </DialogHeader>
             
-            <div className="grid grid-cols-2 gap-4 py-4 max-h-[70vh] overflow-y-auto pr-4">
-                <div className="col-span-2 space-y-2">
+            <div className="py-4 max-h-[70vh] overflow-y-auto pr-4 space-y-4">
+                <div className="space-y-2">
                     <Label htmlFor="name">Nama Bahan</Label>
                     <div className="flex gap-2">
-                        <Input id="name" value={formData.name || ''} onChange={e => handleChange('name', e.target.value)} />
+                        <Input id="name" value={formData.name || ''} onChange={e => handleChange('name', e.target.value)} className="flex-1" />
                         <Button type="button" variant="outline" onClick={handleAiFetch} disabled={isAiLoading || !formData.name}>
                             {isAiLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
                         </Button>
@@ -130,7 +129,7 @@ const FoodForm = ({ food, onSave, onCancel, isSaving }) => {
                 </div>
 
                 {(isAiLoading || aiResult) && (
-                    <div className="col-span-2">
+                    <div>
                         {isAiLoading && <div className="flex items-center justify-center p-4"><Loader2 className="h-6 w-6 animate-spin text-primary" /></div>}
                         {aiResult && !isAiLoading && (
                             <Card className="bg-muted/50">
@@ -178,15 +177,39 @@ const FoodForm = ({ food, onSave, onCancel, isSaving }) => {
                     </div>
                 )}
 
-                <div className="col-span-2"><Label htmlFor="category">Kategori</Label><Input id="category" value={formData.category || ''} onChange={e => handleChange('category', e.target.value)} /></div>
-                <div><Label htmlFor="calories_kcal">Kalori (kkal)</Label><Input id="calories_kcal" type="number" value={formData.calories_kcal || ''} onChange={e => handleChange('calories_kcal', e.target.value)} /></div>
-                <div><Label htmlFor="price_per_100g">Harga (Rp)</Label><Input id="price_per_100g" type="number" value={formData.price_per_100g || ''} onChange={e => handleChange('price_per_100g', e.target.value)} /></div>
-                <div><Label htmlFor="protein_g">Protein (g)</Label><Input id="protein_g" type="number" value={formData.protein_g || ''} onChange={e => handleChange('protein_g', e.target.value)} /></div>
-                <div><Label htmlFor="fat_g">Lemak (g)</Label><Input id="fat_g" type="number" value={formData.fat_g || ''} onChange={e => handleChange('fat_g', e.target.value)} /></div>
-                <div><Label htmlFor="carbs_g">Karbohidrat (g)</Label><Input id="carbs_g" type="number" value={formData.carbs_g || ''} onChange={e => handleChange('carbs_g', e.target.value)} /></div>
-                <div><Label htmlFor="fiber_g">Serat (g)</Label><Input id="fiber_g" type="number" value={formData.fiber_g || ''} onChange={e => handleChange('fiber_g', e.target.value)} /></div>
+                <div className="space-y-2">
+                    <Label htmlFor="category">Kategori</Label>
+                    <Input id="category" value={formData.category || ''} onChange={e => handleChange('category', e.target.value)} />
+                </div>
 
-                <div className="col-span-2 space-y-3 pt-4 border-t">
+                <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                        <Label htmlFor="calories_kcal">Kalori (kkal)</Label>
+                        <Input id="calories_kcal" type="number" value={formData.calories_kcal || ''} onChange={e => handleChange('calories_kcal', e.target.value)} />
+                    </div>
+                    <div className="space-y-2">
+                        <Label htmlFor="price_per_100g">Harga (Rp)</Label>
+                        <Input id="price_per_100g" type="number" value={formData.price_per_100g || ''} onChange={e => handleChange('price_per_100g', e.target.value)} />
+                    </div>
+                    <div className="space-y-2">
+                        <Label htmlFor="protein_g">Protein (g)</Label>
+                        <Input id="protein_g" type="number" value={formData.protein_g || ''} onChange={e => handleChange('protein_g', e.target.value)} />
+                    </div>
+                    <div className="space-y-2">
+                        <Label htmlFor="fat_g">Lemak (g)</Label>
+                        <Input id="fat_g" type="number" value={formData.fat_g || ''} onChange={e => handleChange('fat_g', e.target.value)} />
+                    </div>
+                    <div className="space-y-2">
+                        <Label htmlFor="carbs_g">Karbohidrat (g)</Label>
+                        <Input id="carbs_g" type="number" value={formData.carbs_g || ''} onChange={e => handleChange('carbs_g', e.target.value)} />
+                    </div>
+                    <div className="space-y-2">
+                        <Label htmlFor="fiber_g">Serat (g)</Label>
+                        <Input id="fiber_g" type="number" value={formData.fiber_g || ''} onChange={e => handleChange('fiber_g', e.target.value)} />
+                    </div>
+                </div>
+
+                <div className="space-y-3 pt-4 border-t">
                     <Label>Konversi Satuan (Opsional)</Label>
                     <div className="space-y-2">
                         {conversions.map((conv, index) => (

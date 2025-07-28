@@ -1,13 +1,19 @@
 // Lokasi file: public/preload.js
-// Deskripsi: Menambahkan API baru untuk info aplikasi dan pembaruan.
+// Deskripsi: Mengekspos API baru untuk kontrol jendela dan menu kustom.
 
 const { contextBridge, ipcRenderer } = require('electron');
 
 contextBridge.exposeInMainWorld('api', {
-    // --- API BARU ---
+    // --- API BARU UNTUK JENDELA & MENU ---
+    minimize: () => ipcRenderer.send('app:minimize'),
+    maximize: () => ipcRenderer.send('app:maximize'),
+    close: () => ipcRenderer.send('app:close'),
+    quit: () => ipcRenderer.send('app:quit'),
     getAppVersion: () => ipcRenderer.invoke('app:get-version'),
-    onOpenAboutDialog: (callback) => ipcRenderer.on('open-about-dialog', callback),
-    
+    openLogs: () => ipcRenderer.invoke('app:open-logs'),
+    checkForUpdates: () => ipcRenderer.invoke('app:check-for-updates'),
+    onUpdateStatus: (callback) => ipcRenderer.on('update-status', (_event, value) => callback(value)),
+
     // Fungsi logging
     logError: (error) => ipcRenderer.send('log-error-to-main', error),
 

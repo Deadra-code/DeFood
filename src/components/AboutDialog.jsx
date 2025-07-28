@@ -3,8 +3,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from './ui/dialog';
-import { Button } from './ui/button';
-import { BookOpen, Info } from 'lucide-react';
+import { BookOpen } from 'lucide-react'; // PERBAIKAN: Menghapus impor 'Button' dan 'Info' yang tidak digunakan
 import * as api from '../api/electronAPI';
 
 export default function AboutDialog({ isOpen, onOpenChange }) {

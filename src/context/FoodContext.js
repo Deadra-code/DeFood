@@ -1,5 +1,5 @@
 // Lokasi file: src/context/FoodContext.js
-// Deskripsi: Memperbaiki bug dengan mengekspos fungsi fetchFoods.
+// Deskripsi: Memperbaiki peringatan variabel yang tidak digunakan.
 
 import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
 import * as api from '../api/electronAPI';
@@ -14,7 +14,8 @@ export const FoodProvider = ({ children }) => {
 
     const [foods, setFoods] = useState([]);
     const [foodsLoading, setFoodsLoading] = useState(true);
-    const [pendingDelete, setPendingDelete] = useState({});
+    // PERBAIKAN: Menggunakan sintaks [, set...] untuk menandakan variabel state tidak dibaca
+    const [, setPendingDelete] = useState({});
 
     const fetchFoods = useCallback(async () => {
         if (!apiReady) return;
@@ -114,7 +115,7 @@ export const FoodProvider = ({ children }) => {
         addFood,
         updateFood,
         deleteFood,
-        fetchFoods, // --- PERBAIKAN: Ekspos fetchFoods agar bisa digunakan di komponen lain ---
+        fetchFoods,
     };
 
     return <FoodContext.Provider value={value}>{children}</FoodContext.Provider>;

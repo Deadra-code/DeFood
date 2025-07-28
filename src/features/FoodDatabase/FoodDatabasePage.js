@@ -1,5 +1,5 @@
 // Lokasi file: src/features/FoodDatabase/FoodDatabasePage.js
-// Deskripsi: Menerapkan efek hover pada kartu dan animasi daftar bertingkat.
+// Deskripsi: Menghapus impor 'cn' yang tidak digunakan.
 
 import React, { useState, useMemo } from 'react';
 import { Button } from '../../components/ui/button';
@@ -13,7 +13,7 @@ import { SkeletonList } from '../../components/ui/SkeletonCard';
 import EmptyState from '../../components/ui/EmptyState';
 import { useFoodContext } from '../../context/FoodContext';
 import { useUIStateContext } from '../../context/UIStateContext';
-import { cn } from '../../lib/utils';
+// PERBAIKAN: Menghapus impor 'cn' yang tidak digunakan
 
 const formatCurrency = (value) => {
     return new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', minimumFractionDigits: 0 }).format(value || 0);
@@ -146,7 +146,6 @@ export default function FoodDatabasePage() {
         return (
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
                 {filteredAndSortedFoods.map((food, index) => (
-                    // PENAMBAHAN: Animasi daftar bertingkat dan efek hover
                     <Card 
                         key={food.id} 
                         className="flex flex-col transition-all hover:-translate-y-1 hover:shadow-lg animate-fade-in-up"

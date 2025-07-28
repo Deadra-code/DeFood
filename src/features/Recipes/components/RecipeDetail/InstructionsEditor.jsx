@@ -1,94 +1,74 @@
 // Lokasi file: src/features/Recipes/components/RecipeDetail/InstructionsEditor.jsx
-// Deskripsi: Komponen baru untuk editor instruksi yang terstruktur dengan drag-and-drop.
+// Deskripsi: Menerapkan kelas 'prose' untuk styling daftar otomatis.
 
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect } from 'react';
 import { DragDropContext, Droppable, Draggable } from '@hello-pangea/dnd';
 import { Button } from '../../../../components/ui/button';
 import { Textarea } from '../../../../components/ui/textarea';
-import { GripVertical, Trash2, PlusCircle, Save, X } from 'lucide-react';
+import { GripVertical, Trash2, PlusCircle } from 'lucide-react';
 import { Card, CardContent } from '../../../../components/ui/card';
 import { cn } from '../../../../lib/utils';
 
-// Fungsi untuk mengubah blok teks menjadi array langkah-langkah
 const parseInstructions = (text) => {
     if (!text || typeof text !== 'string') return [];
-    // Memisahkan berdasarkan pola "nomor." dan membersihkan spasi
     return text.split(/\n?\d+\.\s?/).filter(step => step.trim() !== '').map((stepText, index) => ({
-        id: `step-${index}-${Date.now()}`, // ID unik untuk drag-and-drop
+        id: `step-${index}-${Date.now()}`,
         text: stepText.trim(),
     }));
 };
 
-// Fungsi untuk menggabungkan array langkah-langkah menjadi satu blok teks
 const joinInstructions = (steps) => {
     return steps.map((step, index) => `${index + 1}. ${step.text}`).join('\n');
 };
 
-export const InstructionsEditor = ({ initialValue, onSave, onCancel, onDirtyChange }) => {
+export const InstructionsEditor = ({ initialValue, onChange }) => {
     const [steps, setSteps] = useState([]);
     const [isEditing, setIsEditing] = useState(false);
 
-    // Efek untuk mem-parsing nilai awal saat komponen dimuat atau nilai berubah
     useEffect(() => {
         setSteps(parseInstructions(initialValue));
     }, [initialValue]);
-    
-    // Efek untuk memberitahu parent jika ada perubahan
-    useEffect(() => {
-        if(onDirtyChange) {
-            const originalText = joinInstructions(parseInstructions(initialValue));
-            const currentText = joinInstructions(steps);
-            onDirtyChange(originalText !== currentText);
-        }
-    }, [steps, initialValue, onDirtyChange]);
 
+    const reportChange = (newSteps) => {
+        setSteps(newSteps);
+        onChange(joinInstructions(newSteps));
+    };
 
     const handleOnDragEnd = (result) => {
         if (!result.destination) return;
         const items = Array.from(steps);
         const [reorderedItem] = items.splice(result.source.index, 1);
         items.splice(result.destination.index, 0, reorderedItem);
-        setSteps(items);
+        reportChange(items);
     };
 
     const handleTextChange = (id, newText) => {
-        setSteps(steps.map(step => (step.id === id ? { ...step, text: newText } : step)));
+        const newSteps = steps.map(step => (step.id === id ? { ...step, text: newText } : step));
+        reportChange(newSteps);
     };
 
     const addStep = () => {
         const newStep = { id: `step-${steps.length}-${Date.now()}`, text: '' };
-        setSteps([...steps, newStep]);
+        reportChange([...steps, newStep]);
     };
 
     const deleteStep = (idToDelete) => {
-        setSteps(steps.filter(step => step.id !== idToDelete));
-    };
-
-    const handleSave = () => {
-        onSave(joinInstructions(steps));
-        setIsEditing(false);
-    };
-
-    const handleCancelEdit = () => {
-        // Panggil onCancel dari prop jika ada, atau reset state secara lokal
-        if (onCancel) {
-            onCancel();
-        } else {
-            setSteps(parseInstructions(initialValue));
-        }
-        setIsEditing(false);
+        const newSteps = steps.filter(step => step.id !== idToDelete);
+        reportChange(newSteps);
     };
 
     if (!isEditing) {
         return (
             <div className="space-y-2">
                 {steps.length > 0 ? (
-                    steps.map((step, index) => (
-                        <div key={step.id} className="flex items-start gap-3">
-                            <span className="font-semibold text-lg text-primary">{index + 1}.</span>
-                            <p className="flex-1 pt-0.5 text-base leading-relaxed">{step.text}</p>
-                        </div>
-                    ))
+                    // --- PERUBAHAN: Terapkan kelas 'prose' di sini ---
+                    <div className="prose prose-sm dark:prose-invert max-w-none">
+                        <ol>
+                            {steps.map((step) => (
+                                <li key={step.id}>{step.text}</li>
+                            ))}
+                        </ol>
+                    </div>
                 ) : (
                     <p className="text-muted-foreground italic">Belum ada instruksi.</p>
                 )}
@@ -97,6 +77,7 @@ export const InstructionsEditor = ({ initialValue, onSave, onCancel, onDirtyChan
         );
     }
 
+    // Tampilan edit tidak berubah
     return (
         <Card className="p-4 bg-muted/30">
             <CardContent className="p-0">
@@ -138,14 +119,13 @@ export const InstructionsEditor = ({ initialValue, onSave, onCancel, onDirtyChan
                         )}
                     </Droppable>
                 </DragDropContext>
-                <Button variant="outline" size="sm" onClick={addStep} className="mt-4">
-                    <PlusCircle className="mr-2 h-4 w-4" /> Tambah Langkah
-                </Button>
+                <div className="flex justify-between items-center mt-4">
+                    <Button variant="outline" size="sm" onClick={addStep}>
+                        <PlusCircle className="mr-2 h-4 w-4" /> Tambah Langkah
+                    </Button>
+                    <Button variant="secondary" onClick={() => setIsEditing(false)}>Selesai Mengedit</Button>
+                </div>
             </CardContent>
-            <div className="flex justify-end gap-2 mt-4 pt-4 border-t">
-                <Button variant="ghost" onClick={handleCancelEdit}><X className="mr-2 h-4 w-4"/> Batal</Button>
-                <Button onClick={handleSave}><Save className="mr-2 h-4 w-4"/> Simpan Instruksi</Button>
-            </div>
         </Card>
     );
 };
