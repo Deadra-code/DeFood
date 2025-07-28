@@ -1,10 +1,11 @@
 // Lokasi file: src/electron/ipcHandlers/foodHandlers.js
-// Deskripsi: Prompt AI dirombak untuk mencari estimasi harga per 100 gram.
+// Deskripsi: Diperbarui untuk menggunakan konfigurasi AI terpusat.
 
 const log = require('electron-log');
 const { foodSchema } = require('../schemas.cjs');
 const axios = require('axios');
 const https = require('https');
+const { getAiApiUrl } = require('../aiConfig'); // --- BARU: Impor dari file konfigurasi ---
 
 // Agen HTTPS khusus yang memaksa penggunaan koneksi IPv4.
 const httpsAgent = new https.Agent({
@@ -63,7 +64,6 @@ function registerFoodHandlers(ipcMain, db) {
         return { success: true };
     });
 
-    // --- PENINGKATAN: Logika AI sekarang juga mencari harga ---
     ipcMain.handle('ai:get-grounded-food-data', async (event, foodName) => {
         log.info(`Price & Nutrition AI request for: ${foodName}`);
         const apiKeyRow = await db.getAsync("SELECT value FROM settings WHERE key = 'googleApiKey'");
@@ -73,9 +73,9 @@ function registerFoodHandlers(ipcMain, db) {
             throw new Error("Kunci API Google AI belum diatur di Pengaturan.");
         }
 
-        const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`;
+        // --- PERUBAHAN: Menggunakan fungsi terpusat untuk mendapatkan URL ---
+        const url = getAiApiUrl(apiKey);
         
-        // --- PENINGKATAN: Prompt diperbarui untuk mencari harga ---
         const prompt = `
             Analyze the food item: "${foodName}". Your task is to provide its nutritional information, an estimated price, and its category.
 
@@ -122,13 +122,13 @@ function registerFoodHandlers(ipcMain, db) {
         }
     });
     
-    // Handler untuk Uji Koneksi di halaman Pengaturan
     ipcMain.handle('ai:test-connection', async (event) => {
         const apiKeyRow = await db.getAsync("SELECT value FROM settings WHERE key = 'googleApiKey'");
         const apiKey = apiKeyRow?.value;
         if (!apiKey) throw new Error("Kunci API belum diatur.");
 
-        const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`;
+        // --- PERUBAHAN: Menggunakan fungsi terpusat untuk mendapatkan URL ---
+        const url = getAiApiUrl(apiKey);
         const payload = { contents: [{ parts: [{ text: "test" }] }] };
 
         try {

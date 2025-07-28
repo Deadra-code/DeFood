@@ -1,15 +1,18 @@
 // Lokasi file: src/features/Recipes/components/RecipeDetail/RecipeIngredientsTable.jsx
-// Deskripsi: Menambahkan tombol edit di setiap baris untuk membuka dialog edit bahan.
+// Deskripsi: Menambahkan fungsionalitas bulk delete dengan checkbox.
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { DragDropContext, Droppable, Draggable } from '@hello-pangea/dnd';
 import { Table, TableBody, TableCell, TableRow, TableHead, TableHeader } from '../../../../components/ui/table';
 import { Button } from '../../../../components/ui/button';
 import { Input } from '../../../../components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../../../../components/ui/select';
 import { Tooltip, TooltipContent, TooltipTrigger } from '../../../../components/ui/tooltip';
-import { GripVertical, Trash2, Edit } from 'lucide-react'; // --- BARU: Impor ikon Edit ---
+import { GripVertical, Trash2, Edit } from 'lucide-react';
 import { cn } from '../../../../lib/utils';
+import { Checkbox } from '../../../../components/ui/checkbox'; // --- BARU: Impor Checkbox ---
+import { AlertDialog, AlertDialogContent, AlertDialogHeader, AlertDialogTitle, AlertDialogDescription, AlertDialogFooter, AlertDialogCancel, AlertDialogAction } from '../../../../components/ui/alert-dialog'; // --- BARU: Impor Alert Dialog ---
+
 
 const formatCurrency = (value) => {
     return new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', minimumFractionDigits: 0 }).format(value || 0);
@@ -21,9 +24,42 @@ export const RecipeIngredientsTable = ({
     handleOnDragEnd,
     deleteIngredient,
     handleUpdateIngredient,
-    handleEditIngredientFood // --- BARU: Terima prop handler ---
+    handleEditIngredientFood,
+    handleBulkDeleteIngredients // --- BARU: Terima prop handler bulk delete ---
 }) => {
     const [editingIngredient, setEditingIngredient] = useState({ id: null, quantity: '', unit: '' });
+    // --- STATE BARU: Untuk melacak item yang dipilih ---
+    const [selectedIngredients, setSelectedIngredients] = useState(new Set());
+    const [isConfirmDeleteDialogOpen, setIsConfirmDeleteDialogOpen] = useState(false);
+
+    // Reset pilihan jika daftar bahan berubah
+    useEffect(() => {
+        setSelectedIngredients(new Set());
+    }, [ingredients]);
+
+    const handleSelect = (ingredientId) => {
+        const newSelection = new Set(selectedIngredients);
+        if (newSelection.has(ingredientId)) {
+            newSelection.delete(ingredientId);
+        } else {
+            newSelection.add(ingredientId);
+        }
+        setSelectedIngredients(newSelection);
+    };
+
+    const handleSelectAll = (checked) => {
+        if (checked) {
+            const allIds = new Set(ingredients.map(ing => ing.id));
+            setSelectedIngredients(allIds);
+        } else {
+            setSelectedIngredients(new Set());
+        }
+    };
+
+    const confirmBulkDelete = () => {
+        handleBulkDeleteIngredients(Array.from(selectedIngredients));
+        setIsConfirmDeleteDialogOpen(false);
+    };
 
     const startEditing = (ing) => {
         setEditingIngredient({ id: ing.id, quantity: ing.quantity, unit: ing.unit });
@@ -47,15 +83,35 @@ export const RecipeIngredientsTable = ({
         }
     };
 
+    const isAllSelected = ingredients.length > 0 && selectedIngredients.size === ingredients.length;
+
     return (
         <DragDropContext onDragEnd={handleOnDragEnd}>
+            {/* --- UI BARU: Tombol Hapus Terpilih yang kondisional --- */}
+            {selectedIngredients.size > 0 && (
+                <div className="mb-4 flex items-center justify-between">
+                    <span className="text-sm text-muted-foreground">{selectedIngredients.size} bahan terpilih</span>
+                    <Button variant="destructive" size="sm" onClick={() => setIsConfirmDeleteDialogOpen(true)}>
+                        <Trash2 className="mr-2 h-4 w-4" />
+                        Hapus Terpilih
+                    </Button>
+                </div>
+            )}
             <Table>
                 <TableHeader>
                     <TableRow>
+                        {/* --- UI BARU: Kolom Checkbox --- */}
+                        <TableHead className="w-12">
+                            <Checkbox
+                                checked={isAllSelected}
+                                onCheckedChange={handleSelectAll}
+                                aria-label="Pilih semua"
+                            />
+                        </TableHead>
                         <TableHead className="w-8"></TableHead>
                         <TableHead>Nama Bahan</TableHead>
                         <TableHead>Jumlah</TableHead>
-                        <TableHead className="text-right w-32">Aksi</TableHead> {/* Perlebar kolom Aksi */}
+                        <TableHead className="text-right w-32">Aksi</TableHead>
                     </TableRow>
                 </TableHeader>
                 <Droppable droppableId="ingredients">
@@ -72,6 +128,14 @@ export const RecipeIngredientsTable = ({
                                     <Draggable key={ing.id} draggableId={String(ing.id)} index={index}>
                                         {(provided, snapshot) => (
                                             <TableRow ref={provided.innerRef} {...provided.draggableProps} className={cn("group", snapshot.isDragging && "bg-accent shadow-lg")}>
+                                                {/* --- UI BARU: Checkbox per baris --- */}
+                                                <TableCell>
+                                                    <Checkbox
+                                                        checked={selectedIngredients.has(ing.id)}
+                                                        onCheckedChange={() => handleSelect(ing.id)}
+                                                        aria-label={`Pilih ${ing.food.name}`}
+                                                    />
+                                                </TableCell>
                                                 <TableCell className="pl-2" {...provided.dragHandleProps}>
                                                     <Tooltip><TooltipTrigger asChild><GripVertical className="h-5 w-5 text-muted-foreground" /></TooltipTrigger><TooltipContent><p>Ubah urutan</p></TooltipContent></Tooltip>
                                                 </TableCell>
@@ -108,7 +172,6 @@ export const RecipeIngredientsTable = ({
                                                     )}
                                                 </TableCell>
                                                 <TableCell className="text-right">
-                                                    {/* --- BARU: Container untuk tombol aksi --- */}
                                                     <div className="opacity-0 group-hover:opacity-100 transition-opacity flex justify-end items-center">
                                                         <Tooltip>
                                                             <TooltipTrigger asChild>
@@ -131,13 +194,34 @@ export const RecipeIngredientsTable = ({
                                             </TableRow>
                                         )}
                                     </Draggable>
-                                )
-                            }) : (<TableRow><TableCell colSpan={4} className="text-center h-24 text-muted-foreground">Belum ada bahan.</TableCell></TableRow>)}
+                                );
+                            }) : (
+                                <TableRow>
+                                    <TableCell colSpan={5} className="text-center h-24 text-muted-foreground">Belum ada bahan.</TableCell>
+                                </TableRow>
+                            )}
                             {provided.placeholder}
                         </TableBody>
                     )}
                 </Droppable>
             </Table>
+            {/* --- UI BARU: Dialog konfirmasi hapus --- */}
+            <AlertDialog open={isConfirmDeleteDialogOpen} onOpenChange={setIsConfirmDeleteDialogOpen}>
+                <AlertDialogContent>
+                    <AlertDialogHeader>
+                        <AlertDialogTitle>Anda yakin?</AlertDialogTitle>
+                        <AlertDialogDescription>
+                            Aksi ini akan menghapus {selectedIngredients.size} bahan dari resep secara permanen. Aksi ini tidak dapat dibatalkan.
+                        </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                        <AlertDialogCancel>Batal</AlertDialogCancel>
+                        <AlertDialogAction asChild>
+                            <Button variant="destructive" onClick={confirmBulkDelete}>Hapus</Button>
+                        </AlertDialogAction>
+                    </AlertDialogFooter>
+                </AlertDialogContent>
+            </AlertDialog>
         </DragDropContext>
     );
 };

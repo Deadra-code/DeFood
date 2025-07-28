@@ -1,5 +1,5 @@
 // Lokasi file: public/preload.js
-// Deskripsi: Mengekspos handler "AI Agent" dan listener status.
+// Deskripsi: Mengekspos handler bulk delete yang baru.
 
 const { contextBridge, ipcRenderer } = require('electron');
 
@@ -27,13 +27,15 @@ contextBridge.exposeInMainWorld('api', {
     getIngredientsForRecipe: (recipeId) => ipcRenderer.invoke('db:get-ingredients-for-recipe', recipeId),
     addIngredientsBulk: (data) => ipcRenderer.invoke('db:add-ingredients-bulk', data),
     deleteIngredientFromRecipe: (id) => ipcRenderer.invoke('db:delete-ingredient-from-recipe', id),
+    // --- API BARU UNTUK BULK DELETE ---
+    deleteIngredientsBulk: (ids) => ipcRenderer.invoke('db:delete-ingredients-bulk', ids),
     updateIngredientOrder: (orderedIngredients) => ipcRenderer.invoke('db:update-ingredient-order', orderedIngredients),
     updateIngredient: (data) => ipcRenderer.invoke('db:update-ingredient', data),
 
-    // --- API BARU UNTUK AI AGENT ---
+    // --- API UNTUK AI AGENT ---
     processUnknownIngredients: (ingredientNames) => ipcRenderer.invoke('ai:process-unknown-ingredients', ingredientNames),
     
-    // --- LISTENER BARU UNTUK STATUS PROGRES ---
+    // --- LISTENER UNTUK STATUS PROGRES ---
     onAiProcessStatus: (callback) => ipcRenderer.on('ai-process-status', (_event, value) => callback(value)),
     
     // --- PENTING: Hapus listener saat tidak diperlukan untuk mencegah memory leak ---

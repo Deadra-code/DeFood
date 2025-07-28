@@ -1,5 +1,5 @@
 // Lokasi file: src/api/electronAPI.js
-// Deskripsi: Menambahkan fungsi helper untuk "AI Agent".
+// Deskripsi: Menambahkan fungsi helper untuk bulk delete.
 
 const isApiReady = () => {
     if (window.api) return true;
@@ -29,11 +29,13 @@ export const duplicateRecipe = (id) => isApiReady() ? window.api.duplicateRecipe
 export const getIngredientsForRecipe = (recipeId) => isApiReady() ? window.api.getIngredientsForRecipe(recipeId) : Promise.resolve([]);
 export const addIngredientsBulk = (data) => isApiReady() ? window.api.addIngredientsBulk(data) : Promise.reject(new Error("API not ready"));
 export const deleteIngredientFromRecipe = (id) => isApiReady() ? window.api.deleteIngredientFromRecipe(id) : Promise.reject(new Error("API not ready"));
+// --- FUNGSI BARU ---
+export const deleteIngredientsBulk = (ids) => isApiReady() ? window.api.deleteIngredientsBulk(ids) : Promise.reject(new Error("API not ready"));
 export const updateIngredientOrder = (orderedIngredients) => isApiReady() ? window.api.updateIngredientOrder(orderedIngredients) : Promise.reject(new Error("API not ready"));
 export const updateIngredient = (data) => isApiReady() ? window.api.updateIngredient(data) : Promise.reject(new Error("API not ready"));
 
 
-// --- FUNGSI BARU UNTUK AI AGENT ---
+// --- FUNGSI UNTUK AI AGENT ---
 export const processUnknownIngredients = (ingredientNames) => isApiReady() ? window.api.processUnknownIngredients(ingredientNames) : Promise.reject(new Error("API not ready"));
 export const onAiProcessStatus = (callback) => isApiReady() ? window.api.onAiProcessStatus(callback) : () => {};
 export const removeAiProcessStatusListener = () => isApiReady() ? window.api.removeAiProcessStatusListener() : () => {};

@@ -1,15 +1,16 @@
 // Lokasi file: src/electron/ipcHandlers/recipeHandlers.js
-// Deskripsi: Memperbaiki bug duplikasi key dengan memberi alias pada kolom ID di query SQL.
+// Deskripsi: Memperbaiki prompt AI untuk generate-instructions agar hasilnya lebih natural.
 
 const log = require('electron-log');
 const { ingredientBulkSchema, updateIngredientSchema, updateIngredientOrderSchema, foodSchema } = require('../schemas.cjs');
 const axios = require('axios');
 const https = require('https');
+const { getAiApiUrl } = require('../aiConfig');
 
 const httpsAgent = new https.Agent({ family: 4 });
 
 async function callGoogleAI(apiKey, prompt, isJsonOutput = true) {
-    const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`;
+    const url = getAiApiUrl(apiKey);
     const payload = { contents: [{ parts: [{ text: prompt }] }] };
     try {
         const response = await axios.post(url, payload, {
@@ -108,8 +109,6 @@ function registerRecipeHandlers(ipcMain, db) {
             throw err;
         }
     });
-
-    // --- PERBAIKAN: Query SQL diubah untuk mencegah tabrakan nama kolom 'id' ---
     ipcMain.handle('db:get-ingredients-for-recipe', async (event, recipeId) => {
         const sql = `
             SELECT 
@@ -123,22 +122,12 @@ function registerRecipeHandlers(ipcMain, db) {
             JOIN foods f ON ri.food_id = f.id
             WHERE ri.recipe_id = ?
             ORDER BY ri.display_order ASC`;
-        
         const rows = await db.allAsync(sql, [recipeId]);
-
-        // --- PERBAIKAN: Mapping disesuaikan dengan nama kolom baru ---
         return rows.map(row => {
             const { recipe_ingredient_id, quantity, unit, display_order, food_unit_conversions, ...foodData } = row;
-            return { 
-                id: recipe_ingredient_id, // Gunakan ID unik dari tabel recipe_ingredients
-                quantity, 
-                unit, 
-                display_order, 
-                food: { ...foodData, unit_conversions: food_unit_conversions } 
-            };
+            return { id: recipe_ingredient_id, quantity, unit, display_order, food: { ...foodData, unit_conversions: food_unit_conversions } };
         });
     });
-
     ipcMain.handle('db:add-ingredients-bulk', async (event, payload) => {
         try {
             const { recipe_id, ingredients } = ingredientBulkSchema.parse(payload);
@@ -169,6 +158,16 @@ function registerRecipeHandlers(ipcMain, db) {
     ipcMain.handle('db:delete-ingredient-from-recipe', async (event, ingredientId) => {
         await db.runAsync("DELETE FROM recipe_ingredients WHERE id = ?", [ingredientId]);
         return { success: true };
+    });
+    ipcMain.handle('db:delete-ingredients-bulk', async (event, ingredientIds) => {
+        if (!Array.isArray(ingredientIds) || ingredientIds.length === 0) {
+            throw new Error("Payload tidak valid: harus berupa array ID.");
+        }
+        const placeholders = ingredientIds.map(() => '?').join(',');
+        const sql = `DELETE FROM recipe_ingredients WHERE id IN (${placeholders})`;
+        await db.runAsync(sql, ingredientIds);
+        log.info(`${ingredientIds.length} bahan berhasil dihapus.`);
+        return { success: true, count: ingredientIds.length };
     });
     ipcMain.handle('db:update-ingredient-order', async (event, payload) => {
         try {
@@ -226,10 +225,29 @@ function registerRecipeHandlers(ipcMain, db) {
         const result = await callGoogleAI(apiKey, prompt);
         return result.ingredients || [];
     });
+
+    // --- PERBAIKAN: Prompt untuk instruksi disempurnakan ---
     ipcMain.handle('ai:generate-instructions', async (event, { recipeName, ingredients }) => {
         const apiKey = await getApiKey();
         const ingredientNames = ingredients.map(ing => `${ing.food.name} (${ing.quantity} ${ing.unit})`).join(', ');
-        const prompt = `Based on recipe "${recipeName}" and ingredients: ${ingredientNames}, write step-by-step cooking instructions in Bahasa Indonesia. Return a JSON object with a key "instructions" containing the full text.`;
+        const prompt = `
+            Anda adalah seorang penulis resep profesional.
+            Tuliskan langkah-langkah memasak yang jelas, mudah diikuti, dan naratif untuk resep bernama "${recipeName}" dengan bahan-bahan berikut: ${ingredientNames}.
+
+            Aturan Ketat:
+            1.  Gunakan gaya bahasa yang natural dan mengalir, bukan format kaku.
+            2.  Mulai setiap langkah dengan nomor diikuti titik (contoh: "1. ...", "2. ...").
+            3.  Pastikan setiap langkah ada di baris baru.
+            4.  JANGAN gunakan format aneh seperti bold (**), asterisk (*), atau judul tambahan.
+            5.  Hanya berikan teks instruksinya saja.
+
+            Anda HARUS mengembalikan respons dalam format JSON yang ketat dengan satu kunci "instructions" yang berisi seluruh teks instruksi sebagai satu string tunggal.
+
+            Contoh output yang baik untuk resep "Nasi Goreng":
+            {
+                "instructions": "1. Panaskan sedikit minyak di wajan dengan api sedang. Tumis bawang putih dan bawang merah hingga harum.\\n2. Masukkan telur dan buat orak-arik hingga matang. Sisihkan di pinggir wajan.\\n3. Tambahkan nasi putih, kecap manis, garam, dan merica. Aduk cepat hingga semua bumbu tercampur rata dan nasi sedikit kering.\\n4. Koreksi rasa, tambahkan bumbu jika perlu. Sajikan segera selagi hangat."
+            }
+        `;
         const result = await callGoogleAI(apiKey, prompt);
         return result.instructions || "";
     });

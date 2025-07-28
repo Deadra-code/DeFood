@@ -1,5 +1,5 @@
 // Lokasi file: src/features/Recipes/RecipeDetailView.js
-// Deskripsi: Diperbarui untuk menangani pembukaan dialog edit bahan dari tabel.
+// Deskripsi: Mengganti Textarea instruksi dengan komponen editor interaktif baru.
 
 import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { AlertDialog, AlertDialogContent, AlertDialogHeader, AlertDialogTitle, AlertDialogDescription, AlertDialogFooter, AlertDialogCancel, AlertDialogAction } from '../../components/ui/alert-dialog';
@@ -8,12 +8,13 @@ import { Button } from '../../components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '../../components/ui/card';
 import { Input } from '../../components/ui/input';
 import { Label } from '../../components/ui/label';
-import { Textarea } from '../../components/ui/textarea';
-import { Loader2, AlertCircle } from 'lucide-react';
+import { Textarea } from '../../components/ui/textarea'; // Tetap diimpor untuk deskripsi
+import { Loader2, AlertCircle, Sparkles } from 'lucide-react';
 import { useNotifier } from '../../hooks/useNotifier';
 import * as api from '../../api/electronAPI';
 import { useRecipeContext } from '../../context/RecipeContext';
-import { useUIStateContext } from '../../context/UIStateContext'; // --- BARU: Impor UI State Context ---
+import { useUIStateContext } from '../../context/UIStateContext';
+import { useFoodContext } from '../../context/FoodContext';
 import { calculateRecipeTotals, validateIngredientsForCalculation } from '../../utils/nutritionCalculator';
 import jsPDF from 'jspdf';
 import 'jspdf-autotable';
@@ -24,12 +25,13 @@ import { RecipeAnalysis } from './components/RecipeDetail/RecipeAnalysis';
 import { RecipeIngredientsTable } from './components/RecipeDetail/RecipeIngredientsTable';
 import { AiButton } from './components/RecipeDetail/AiButton';
 import AddIngredientDialog from './components/AddIngredientDialog';
-import ImportIngredientsDialog from './components/ImportIngredientsDialog';
+import { InstructionsEditor } from './components/RecipeDetail/InstructionsEditor'; // --- BARU: Impor editor instruksi ---
 
 export default function RecipeDetailView({ recipe, onRecipeDeleted, onRecipeUpdated, setIsDirty }) {
     const { notify } = useNotifier();
     const { duplicateRecipe, updateRecipe } = useRecipeContext();
-    const { setFoodToEdit } = useUIStateContext(); // --- BARU: Dapatkan fungsi untuk membuka dialog ---
+    const { setFoodToEdit } = useUIStateContext();
+    const { fetchFoods } = useFoodContext();
     const [details, setDetails] = useState(recipe);
     const [ingredients, setIngredients] = useState([]);
     const [servings, setServings] = useState(1);
@@ -42,6 +44,7 @@ export default function RecipeDetailView({ recipe, onRecipeDeleted, onRecipeUpda
         description: false,
         instructions: false,
     });
+    const [isSuggestingAndProcessing, setIsSuggestingAndProcessing] = useState(false);
     const containerRef = useRef(null);
 
     const isDifferent = useMemo(() => JSON.stringify(details) !== JSON.stringify(recipe), [details, recipe]);
@@ -71,9 +74,46 @@ export default function RecipeDetailView({ recipe, onRecipeDeleted, onRecipeUpda
     
     const handleDetailChange = (field, value) => setDetails(prev => ({ ...prev, [field]: value }));
     
-    // --- FUNGSI BARU: Handler untuk membuka dialog edit bahan ---
     const handleEditIngredientFood = (foodToEdit) => {
         setFoodToEdit({ ...foodToEdit, isNew: false });
+    };
+
+    const handleAiIngredientSuggestion = async () => {
+        if (!recipe.name) {
+            notify.error("Nama resep tidak valid untuk menghasilkan saran.");
+            return;
+        }
+        setIsSuggestingAndProcessing(true);
+        notify.info(`AI sedang mencari saran bahan untuk "${recipe.name}"...`);
+        try {
+            const suggestions = await api.draftIngredients(recipe.name);
+            if (!suggestions || suggestions.length === 0) {
+                notify.info("AI tidak dapat memberikan saran untuk resep ini.");
+                return;
+            }
+            const ingredientNames = suggestions.map(s => s.name);
+            const { processedFoods, failed } = await api.processUnknownIngredients(ingredientNames);
+            if (failed.length > 0) {
+                notify.error(`Gagal memproses: ${failed.map(f => f.name).join(', ')}`);
+            }
+            if (processedFoods.length === 0) {
+                notify.info("Tidak ada bahan baru yang bisa ditambahkan.");
+                return;
+            }
+            const ingredientsToAdd = processedFoods.map(food => ({
+                food_id: food.id,
+                quantity: 100,
+                unit: 'g',
+            }));
+            await api.addIngredientsBulk({ recipe_id: recipe.id, ingredients: ingredientsToAdd });
+            notify.success(`${ingredientsToAdd.length} bahan berhasil disarankan dan ditambahkan!`);
+            await fetchFoods();
+            await fetchIngredients();
+        } catch (err) {
+            notify.error(`Terjadi kesalahan: ${err.message}`);
+        } finally {
+            setIsSuggestingAndProcessing(false);
+        }
     };
 
     const handleSaveDetails = async () => {
@@ -123,6 +163,19 @@ export default function RecipeDetailView({ recipe, onRecipeDeleted, onRecipeUpda
         }
     };
     
+    const handleBulkDeleteIngredients = async (ingredientIds) => {
+        const originalIngredients = [...ingredients];
+        const newIngredients = ingredients.filter(ing => !ingredientIds.includes(ing.id));
+        setIngredients(newIngredients);
+        try {
+            const result = await api.deleteIngredientsBulk(ingredientIds);
+            notify.success(`${result.count} bahan berhasil dihapus.`);
+        } catch (err) {
+            notify.error("Gagal menghapus bahan terpilih. Perubahan dibatalkan.");
+            setIngredients(originalIngredients);
+        }
+    };
+
     const handleOnDragEnd = async (result) => {
         if (!result.destination) return;
         const items = Array.from(ingredients);
@@ -243,7 +296,13 @@ export default function RecipeDetailView({ recipe, onRecipeDeleted, onRecipeUpda
                     <div className="flex justify-between items-center">
                         <CardTitle className="text-lg">Bahan-bahan</CardTitle>
                         <div className="flex items-center gap-2">
-                            <ImportIngredientsDialog recipe={recipe} onFinished={fetchIngredients} />
+                            <Button variant="outline" size="sm" onClick={handleAiIngredientSuggestion} disabled={isSuggestingAndProcessing}>
+                                {isSuggestingAndProcessing ? 
+                                    <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : 
+                                    <Sparkles className="mr-2 h-4 w-4" />
+                                }
+                                Sarankan Bahan
+                            </Button>
                             <AddIngredientDialog recipeId={recipe.id} onIngredientAdded={fetchIngredients} />
                         </div>
                     </div>
@@ -255,17 +314,32 @@ export default function RecipeDetailView({ recipe, onRecipeDeleted, onRecipeUpda
                         handleOnDragEnd={handleOnDragEnd}
                         deleteIngredient={deleteIngredient}
                         handleUpdateIngredient={handleUpdateIngredient}
-                        handleEditIngredientFood={handleEditIngredientFood} // --- BARU: Teruskan handler ke tabel ---
+                        handleEditIngredientFood={handleEditIngredientFood}
+                        handleBulkDeleteIngredients={handleBulkDeleteIngredients}
                     />
                 </CardContent>
             </Card>
 
+            {/* --- PERUBAHAN: Menggunakan komponen editor baru --- */}
             <div>
-                <div className="flex items-center gap-2 mb-2">
-                    <Label htmlFor="recipe-instr" className="text-lg font-semibold">Instruksi</Label>
-                    <AiButton onClick={handleInstructionsAi} isLoading={aiLoading.instructions} tooltipContent="Buat draf instruksi" />
+                <div className="flex items-center gap-2 mb-4">
+                    <h2 className="text-lg font-semibold">Instruksi</h2>
+                    <AiButton onClick={handleInstructionsAi} isLoading={aiLoading.instructions} tooltipContent="Buat draf instruksi dengan AI" />
                 </div>
-                <Textarea id="recipe-instr" value={details.instructions || ''} onChange={e => handleDetailChange('instructions', e.target.value)} placeholder="1. Siapkan bahan-bahan..." rows={12} />
+                <InstructionsEditor
+                    initialValue={details.instructions || ''}
+                    onSave={(newInstructions) => {
+                        handleDetailChange('instructions', newInstructions);
+                        // Anda bisa memilih untuk langsung menyimpan ke DB di sini,
+                        // atau biarkan tombol simpan utama yang melakukannya.
+                        // Untuk konsistensi, kita biarkan tombol utama.
+                    }}
+                    onDirtyChange={(dirty) => {
+                        // Jika editor menjadi 'dirty', kita perlu memberitahu parent
+                        // agar tombol simpan utama diaktifkan.
+                        // Logika ini bisa disempurnakan jika diperlukan.
+                    }}
+                />
             </div>
             
             <AlertDialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
