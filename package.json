@@ -27,6 +27,7 @@
     "cmdk": "^1.0.0",
     "electron-is-dev": "^2.0.0",
     "electron-log": "^5.1.5",
+    "electron-updater": "^6.1.8",
     "jspdf": "^2.5.1",
     "jspdf-autotable": "^3.8.2",
     "lucide-react": "^0.309.0",
@@ -64,7 +65,12 @@
     "productName": "DeFood",
     "files": [
       "build/**/*"
-    ]
+    ],
+    "publish": {
+      "provider": "github",
+      "owner": "Deadra-code",
+      "repo": "DeFood"
+    }
   },
   "browserslist": {
     "production": [

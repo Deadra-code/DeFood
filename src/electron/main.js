@@ -1,41 +1,39 @@
 // Lokasi file: src/electron/main.js
-// Deskripsi: Memperbaiki pesan error dialog ke Bahasa Indonesia dan menambahkan workaround jaringan.
+// Deskripsi: Menambahkan auto-updater, menu kustom, dan IPC untuk info aplikasi.
 
-const { app, dialog, BrowserWindow, ipcMain } = require('electron');
+const { app, dialog, BrowserWindow, ipcMain, Menu, shell } = require('electron');
 const path = require('path');
 const log = require('electron-log');
 const isDev = require('electron-is-dev');
+const { autoUpdater } = require('electron-updater'); // BARU: Impor autoUpdater
 const { initializeDatabase, getDbInstance, closeDatabase } = require('./database');
 const { registerIpcHandlers } = require('./ipcHandlers');
 const dns = require('dns');
 
-// --- PERBAIKAN: Prioritaskan DNS lookup ke IPv4 untuk mengatasi masalah ETIMEDOUT ---
+// Konfigurasi Jaringan & Keamanan
 dns.setDefaultResultOrder('ipv4first');
-
-// --- PERBAIKAN: Mengabaikan error validasi sertifikat SSL ---
-// Ini akan memaksa Node.js untuk menerima koneksi bahkan jika ada
-// Antivirus/Firewall yang melakukan inspeksi SSL/TLS.
 process.env.NODE_TLS_REJECT_UNAUTHORIZED = '0';
 
-// Konfigurasi logging
+// Konfigurasi Logging
 log.transports.file.resolvePathFn = () => path.join(app.getPath('userData'), 'logs/main.log');
 log.transports.file.level = 'info';
 Object.assign(console, log.functions);
+autoUpdater.logger = log; // BARU: Arahkan log updater ke file
 
-// Logger terpisah untuk error dari proses renderer
 const rendererLogger = log.create({ logId: 'rendererLogger' });
 rendererLogger.transports.file.resolvePathFn = () => path.join(app.getPath('userData'), 'logs/renderer.log');
 rendererLogger.transports.file.level = 'error';
 
-// Menangani error yang tidak tertangkap
 process.on('uncaughtException', (error) => {
     log.error('Uncaught Exception:', error);
     dialog.showErrorBox('Kesalahan Fatal', 'Aplikasi mengalami kesalahan yang tidak terduga. Silakan periksa file log untuk detailnya.');
     app.quit();
 });
 
+let mainWindow; // BARU: Deklarasikan mainWindow di scope yang lebih luas
+
 function createWindow() {
-    const mainWindow = new BrowserWindow({
+    mainWindow = new BrowserWindow({
         width: 1280,
         height: 800,
         webPreferences: {
@@ -55,6 +53,10 @@ function createWindow() {
 
     mainWindow.once('ready-to-show', () => {
         mainWindow.show();
+        // BARU: Periksa pembaruan setelah jendela siap ditampilkan
+        if (!isDev) {
+            autoUpdater.checkForUpdatesAndNotify();
+        }
     });
 
     if (isDev) {
@@ -62,12 +64,62 @@ function createWindow() {
     }
 }
 
+// --- FUNGSI BARU: Membuat menu aplikasi kustom ---
+function createMenu() {
+    const template = [
+        {
+            label: 'File',
+            submenu: [
+                { role: 'quit', label: 'Keluar' }
+            ]
+        },
+        {
+            label: 'Bantuan',
+            submenu: [
+                {
+                    label: 'Tentang DeFood',
+                    click: () => {
+                        // Kirim event ke renderer untuk membuka dialog "Tentang"
+                        mainWindow.webContents.send('open-about-dialog');
+                    }
+                },
+                {
+                    label: 'Periksa Pembaruan...',
+                    click: () => {
+                        autoUpdater.checkForUpdates();
+                    }
+                },
+                { type: 'separator' },
+                {
+                    label: 'Pelajari Lebih Lanjut',
+                    click: async () => {
+                        // Membuka link di browser default pengguna
+                        await shell.openExternal('https://github.com');
+                    }
+                }
+            ]
+        }
+    ];
+
+    const menu = Menu.buildFromTemplate(template);
+    Menu.setApplicationMenu(menu);
+}
+
+
 log.info('Aplikasi dimulai...');
 
 app.whenReady().then(async () => {
     try {
         await initializeDatabase();
         const db = getDbInstance();
+        
+        // --- IPC HANDLER BARU ---
+        // IPC untuk mendapatkan versi aplikasi
+        ipcMain.handle('app:get-version', () => {
+            return app.getVersion();
+        });
+        
+        // Daftarkan semua handler lainnya
         registerIpcHandlers(db);
         
         ipcMain.on('log-error-to-main', (event, error) => {
@@ -75,13 +127,38 @@ app.whenReady().then(async () => {
         });
 
         createWindow();
+        createMenu(); // BARU: Panggil fungsi untuk membuat menu
     } catch (error) {
         log.error('Fatal: Gagal menginisialisasi aplikasi.', error);
-        // --- PERUBAHAN: Pesan error diterjemahkan ke Bahasa Indonesia ---
         dialog.showErrorBox('Error Aplikasi', 'Gagal menginisialisasi aplikasi. Lihat log untuk detail.');
         app.quit();
     }
 });
+
+// --- LISTENER AUTO-UPDATER BARU ---
+autoUpdater.on('update-available', () => {
+    log.info('Pembaruan tersedia.');
+    // Bisa mengirim notifikasi ke renderer jika mau
+});
+
+autoUpdater.on('update-downloaded', () => {
+    log.info('Pembaruan diunduh.');
+    dialog.showMessageBox({
+        type: 'info',
+        title: 'Pembaruan Siap',
+        message: 'Versi baru telah diunduh. Mulai ulang aplikasi untuk menerapkan pembaruan.',
+        buttons: ['Mulai Ulang', 'Nanti']
+    }).then(buttonIndex => {
+        if (buttonIndex.response === 0) {
+            autoUpdater.quitAndInstall();
+        }
+    });
+});
+
+autoUpdater.on('error', (err) => {
+    log.error('Error di autoUpdater. ' + err);
+});
+
 
 app.on('window-all-closed', () => {
     closeDatabase();
