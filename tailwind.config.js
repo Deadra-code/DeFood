@@ -57,7 +57,6 @@ module.exports = {
         sm: "calc(var(--radius) - 4px)",
       },
       keyframes: {
-        // --- ANIMASI BARU ---
         "fade-in": {
           from: { opacity: 0 },
           to: { opacity: 1 },
@@ -74,26 +73,22 @@ module.exports = {
           from: { transform: "translateX(20px)", opacity: 0 },
           to: { transform: "translateX(0)", opacity: 1 },
         },
-        // --- AKHIR ANIMASI BARU ---
         "accordion-down": {
-          from: { height: 0 },
+          from: { height: "0" },
           to: { height: "var(--radix-accordion-content-height)" },
         },
         "accordion-up": {
           from: { height: "var(--radix-accordion-content-height)" },
-          to: { height: 0 },
+          to: { height: "0" },
         },
       },
       animation: {
-        // --- UTILITAS ANIMASI BARU ---
         "fade-in": "fade-in 0.3s ease-out",
-        "fade-in-up": "fade-in-up 0.4s ease-out",
+        "fade-in-up": "fade-in-up 0.4s ease-out forwards",
         "slide-in-from-left": "slide-in-from-left 0.4s ease-out",
         "slide-in-from-right": "slide-in-from-right 0.4s ease-out",
-        // --- AKHIR UTILITAS ANIMASI BARU ---
         "accordion-down": "accordion-down 0.2s ease-out",
         "accordion-up": "accordion-up 0.2s ease-out",
-        // PENYEMPURNAAN: Membuat pulse lebih halus
         "pulse": "pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite",
       },
     },

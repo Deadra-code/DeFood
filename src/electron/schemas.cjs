@@ -1,5 +1,5 @@
 // Lokasi file: src/electron/schemas.cjs
-// Deskripsi: Finalisasi dengan menambahkan skema untuk pengaturan (settings).
+// Deskripsi: Skema validasi data untuk backend menggunakan Zod.
 
 const { z } = require('zod');
 
@@ -41,12 +41,11 @@ const updateIngredientOrderSchema = z.array(z.object({
     id: z.number(),
 })).min(1);
 
-// --- PERBAIKAN (Isu #1.2): Skema baru untuk validasi pengaturan ---
+// Skema baru untuk validasi pengaturan
 const settingsSchema = z.object({
     margin: z.preprocess(val => Number(val), z.number().min(0)),
     operationalCost: z.preprocess(val => Number(val), z.number().min(0)),
     laborCost: z.preprocess(val => Number(val), z.number().min(0)),
-    // Kunci API boleh string atau null/undefined
     googleApiKey: z.string().optional().nullable(),
 });
 
@@ -56,5 +55,5 @@ module.exports = {
     ingredientBulkSchema,
     updateIngredientSchema,
     updateIngredientOrderSchema,
-    settingsSchema, // Diekspor untuk digunakan di handler
+    settingsSchema,
 };

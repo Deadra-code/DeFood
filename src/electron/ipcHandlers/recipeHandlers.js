@@ -1,14 +1,16 @@
 // Lokasi file: src/electron/ipcHandlers/recipeHandlers.js
-// Deskripsi: Memperbaiki prompt AI untuk generate-instructions agar hasilnya lebih natural.
+// Deskripsi: Handler untuk semua operasi terkait resep, dengan prompt AI yang sudah diterjemahkan.
 
 const log = require('electron-log');
 const { ingredientBulkSchema, updateIngredientSchema, updateIngredientOrderSchema, foodSchema } = require('../schemas.cjs');
 const axios = require('axios');
 const https = require('https');
 const { getAiApiUrl } = require('../aiConfig');
+const { getGroundedFoodDataWithConversions, updateFoodInDb } = require('./foodHandlers');
 
 const httpsAgent = new https.Agent({ family: 4 });
 
+// --- PERUBAHAN: Prompt AI telah diterjemahkan ke Bahasa Indonesia ---
 async function callGoogleAI(apiKey, prompt, isJsonOutput = true) {
     const url = getAiApiUrl(apiKey);
     const payload = { contents: [{ parts: [{ text: prompt }] }] };
@@ -23,31 +25,24 @@ async function callGoogleAI(apiKey, prompt, isJsonOutput = true) {
         }
         return text;
     } catch (error) {
-        log.error('Error calling Google AI:', error.message);
-        if (error.response) log.error('AI Response Data:', error.response.data);
+        log.error('Error saat memanggil Google AI:', error.message);
+        if (error.response) log.error('Respons Data AI:', error.response.data);
         throw new Error("Gagal berkomunikasi dengan AI.");
     }
 }
 
-async function getGroundedFoodData(apiKey, foodName) {
+// --- PERUBAHAN: Prompt AI telah diterjemahkan ke Bahasa Indonesia ---
+async function getSpecificConversion(apiKey, foodName, unit) {
     const prompt = `
-        Analyze the food item: "${foodName}". Provide its nutritional information, a reliable estimated price, and its category.
-
-        Follow these rules strictly:
-        1.  **Find Estimated Price (PRIORITY):**
-            - Your primary goal is to find a price. Be persistent.
-            - Search using multiple queries like "harga ${foodName} per kg", "jual ${foodName} 1kg", or check Indonesian e-commerce sites (Tokopedia, HappyFresh, etc.).
-            - Find a price for a common unit (e.g., per kg, per 500g).
-            - **You MUST calculate and normalize this price to a value per 100 grams in IDR (Rupiah).** The final value must be a number.
-            - **Only use 0 as the absolute last resort** if no reliable price can be found after multiple search attempts.
-        2.  **Complete Nutritional Data:**
-            - Assume the food is in its **raw** state and **skinless** for meats, unless specified.
-            - You MUST return all five nutritional keys: "calories_kcal", "protein_g", "fat_g", "carbs_g", and "fiber_g".
-            - If a value is not applicable or cannot be found, you MUST use the number 0. Do not omit any keys.
-        3.  **Determine Category:** Determine the most appropriate category in Bahasa Indonesia.
-        4.  **Output Format:** Return a strict JSON object with keys: 'nutrition' (object), 'category' (string), 'price_per_100g' (number), and 'sources' (array).
+        Berapa berat tipikal dalam gram untuk 1 "${unit}" dari "${foodName}"?
+        Aturan:
+        - Berikan estimasi umum yang masuk akal.
+        - Anda HARUS mengembalikan satu objek JSON bersih dengan satu kunci: "grams".
+        - Nilai dari "grams" harus berupa angka.
+        Contoh untuk "Bawang Putih" dan satuan "siung": { "grams": 5 }
     `;
-    return callGoogleAI(apiKey, prompt);
+    const result = await callGoogleAI(apiKey, prompt);
+    return result.grams;
 }
 
 async function addFood(db, foodData) {
@@ -56,7 +51,8 @@ async function addFood(db, foodData) {
     const params = [
         validatedFood.name, validatedFood.serving_size_g || 100, validatedFood.calories_kcal,
         validatedFood.carbs_g, validatedFood.protein_g, validatedFood.fat_g, validatedFood.fiber_g,
-        validatedFood.price_per_100g, validatedFood.category, validatedFood.unit_conversions || '{}',
+        validatedFood.price_per_100g, validatedFood.category,
+        typeof validatedFood.unit_conversions === 'object' ? JSON.stringify(validatedFood.unit_conversions) : validatedFood.unit_conversions || '{}',
         new Date().toISOString()
     ];
     const result = await db.runAsync(sql, params);
@@ -64,24 +60,34 @@ async function addFood(db, foodData) {
 }
 
 function registerRecipeHandlers(ipcMain, db) {
-    // ... (Handler lain tetap sama)
+    const getApiKey = async () => {
+        const row = await db.getAsync("SELECT value FROM settings WHERE key = 'googleApiKey'");
+        const apiKey = row?.value;
+        if (!apiKey) throw new Error("Kunci API Google AI belum diatur.");
+        return apiKey;
+    };
+
     ipcMain.handle('db:get-recipes', async () => db.allAsync("SELECT * FROM recipes ORDER BY name"));
+    
     ipcMain.handle('db:add-recipe', async (event, recipe) => {
         const sql = "INSERT INTO recipes (name, description, instructions, created_at) VALUES (?, ?, ?, ?)";
         const params = [recipe.name, recipe.description || '', recipe.instructions || '', new Date().toISOString()];
         const result = await db.runAsync(sql, params);
         return { id: result.lastID, ...recipe };
     });
+
     ipcMain.handle('db:update-recipe-details', async (event, recipe) => {
         const sql = "UPDATE recipes SET name = ?, description = ?, instructions = ? WHERE id = ?";
         const params = [recipe.name, recipe.description, recipe.instructions, recipe.id];
         await db.runAsync(sql, params);
         return { success: true };
     });
+
     ipcMain.handle('db:delete-recipe', async (event, recipeId) => {
         await db.runAsync("DELETE FROM recipes WHERE id = ?", [recipeId]);
         return { success: true };
     });
+
     ipcMain.handle('db:duplicate-recipe', async (event, recipeId) => {
         await db.runAsync('BEGIN TRANSACTION');
         try {
@@ -109,6 +115,7 @@ function registerRecipeHandlers(ipcMain, db) {
             throw err;
         }
     });
+
     ipcMain.handle('db:get-ingredients-for-recipe', async (event, recipeId) => {
         const sql = `
             SELECT 
@@ -128,6 +135,7 @@ function registerRecipeHandlers(ipcMain, db) {
             return { id: recipe_ingredient_id, quantity, unit, display_order, food: { ...foodData, unit_conversions: food_unit_conversions } };
         });
     });
+
     ipcMain.handle('db:add-ingredients-bulk', async (event, payload) => {
         try {
             const { recipe_id, ingredients } = ingredientBulkSchema.parse(payload);
@@ -151,14 +159,16 @@ function registerRecipeHandlers(ipcMain, db) {
                 throw err;
             }
         } catch (err) {
-            log.error('Invalid payload for add-ingredients-bulk:', err.flatten().fieldErrors);
+            log.error('Payload tidak valid untuk add-ingredients-bulk:', err.flatten().fieldErrors);
             throw new Error("Data yang dikirim tidak valid.");
         }
     });
+
     ipcMain.handle('db:delete-ingredient-from-recipe', async (event, ingredientId) => {
         await db.runAsync("DELETE FROM recipe_ingredients WHERE id = ?", [ingredientId]);
         return { success: true };
     });
+
     ipcMain.handle('db:delete-ingredients-bulk', async (event, ingredientIds) => {
         if (!Array.isArray(ingredientIds) || ingredientIds.length === 0) {
             throw new Error("Payload tidak valid: harus berupa array ID.");
@@ -169,6 +179,7 @@ function registerRecipeHandlers(ipcMain, db) {
         log.info(`${ingredientIds.length} bahan berhasil dihapus.`);
         return { success: true, count: ingredientIds.length };
     });
+
     ipcMain.handle('db:update-ingredient-order', async (event, payload) => {
         try {
             const orderedIngredients = updateIngredientOrderSchema.parse(payload);
@@ -178,10 +189,11 @@ function registerRecipeHandlers(ipcMain, db) {
             await Promise.all(promises);
             return { success: true };
         } catch (err) {
-            log.error('Invalid payload for update-ingredient-order:', err.flatten().fieldErrors);
+            log.error('Payload tidak valid untuk update-ingredient-order:', err.flatten().fieldErrors);
             throw new Error("Data yang dikirim tidak valid.");
         }
     });
+
     ipcMain.handle('db:update-ingredient', async (event, payload) => {
         try {
             const { id, quantity, unit } = updateIngredientSchema.parse(payload);
@@ -189,70 +201,76 @@ function registerRecipeHandlers(ipcMain, db) {
             await db.runAsync(sql, [quantity, unit, id]);
             return { success: true };
         } catch (err) {
-            log.error(`Failed to update ingredient with payload ${JSON.stringify(payload)}:`, err);
+            log.error(`Gagal memperbarui bahan dengan payload ${JSON.stringify(payload)}:`, err);
             throw err;
         }
     });
-    const getApiKey = async () => {
-        const row = await db.getAsync("SELECT value FROM settings WHERE key = 'googleApiKey'");
-        const apiKey = row?.value;
-        if (!apiKey) throw new Error("Kunci API Google AI belum diatur.");
-        return apiKey;
-    };
+
+    // --- PERUBAHAN: Prompt AI telah diterjemahkan ke Bahasa Indonesia ---
     ipcMain.handle('ai:suggest-recipe-names', async (event, ingredients) => {
         const apiKey = await getApiKey();
         const ingredientNames = ingredients.map(ing => ing.food.name).join(', ');
-        const prompt = `Based on: ${ingredientNames}, suggest 5 creative recipe names in Bahasa Indonesia. Return a JSON object with a key "names" which is an array of strings.`;
+        const prompt = `Berdasarkan bahan: ${ingredientNames}, sarankan 5 nama resep kreatif dalam Bahasa Indonesia. Kembalikan objek JSON dengan kunci "names" yang merupakan array string.`;
         const result = await callGoogleAI(apiKey, prompt);
         return result.names || [];
     });
+
+    // --- PERUBAHAN: Prompt AI telah diterjemahkan ke Bahasa Indonesia ---
     ipcMain.handle('ai:generate-description', async (event, { recipeName, ingredients }) => {
         const apiKey = await getApiKey();
         const ingredientNames = ingredients.map(ing => ing.food.name).join(', ');
-        const prompt = `Write a short, appealing description in Bahasa Indonesia for a recipe called "${recipeName}" with ingredients: ${ingredientNames}. Return a JSON object with a key "description" containing the text.`;
+        const prompt = `Tulis deskripsi singkat yang menarik dalam Bahasa Indonesia untuk resep bernama "${recipeName}" dengan bahan: ${ingredientNames}. Kembalikan objek JSON dengan kunci "description" yang berisi teks.`;
         const result = await callGoogleAI(apiKey, prompt);
         return result.description || "";
     });
+
+    // --- PERUBAHAN: Prompt AI telah diterjemahkan ke Bahasa Indonesia ---
     ipcMain.handle('ai:refine-description', async (event, existingDescription) => {
         const apiKey = await getApiKey();
-        const prompt = `Refine this recipe description in Bahasa Indonesia: "${existingDescription}". Return a JSON object with a key "description" containing the improved text.`;
+        const prompt = `Sempurnakan deskripsi resep ini dalam Bahasa Indonesia: "${existingDescription}". Kembalikan objek JSON dengan kunci "description" yang berisi teks yang telah disempurnakan.`;
         const result = await callGoogleAI(apiKey, prompt);
         return result.description || "";
     });
-    ipcMain.handle('ai:draft-ingredients', async (event, recipeName) => {
+    
+    // --- PERUBAHAN: Prompt AI telah diterjemahkan ke Bahasa Indonesia ---
+    ipcMain.handle('ai:draft-ingredients', async (event, { recipeName, servings }) => {
         const apiKey = await getApiKey();
-        const prompt = `List common ingredients for "${recipeName}". Provide a default unit for each in Bahasa Indonesia (e.g., "siung", "sdm", "gram"). Return a JSON object with a key "ingredients" which is an array of objects, each with "name" and "unit" keys.`;
+        const safeServings = servings > 0 ? servings : 1;
+        const prompt = `
+            Buatkan daftar bahan-bahan umum untuk resep bernama "${recipeName}".
+            Resep ini untuk ${safeServings} porsi. Sesuaikan jumlahnya.
+
+            Untuk setiap bahan, berikan:
+            1.  'name': Nama bahan dalam Bahasa Indonesia.
+            2.  'quantity': Estimasi jumlah yang realistis (sebagai angka) untuk ${safeServings} porsi.
+            3.  'unit': Satuan yang umum untuk jumlah tersebut dalam Bahasa Indonesia. Prioritaskan dari daftar ini jika sesuai: ['g', 'kg', 'ons', 'ml', 'l', 'sdm', 'sdt', 'butir', 'pcs', 'siung', 'buah', 'lembar', 'batang'].
+
+            Anda HARUS mengembalikan objek JSON dengan kunci "ingredients" yang merupakan array objek. Setiap objek harus memiliki kunci "name", "quantity", dan "unit".
+        `;
         const result = await callGoogleAI(apiKey, prompt);
         return result.ingredients || [];
     });
 
-    // --- PERBAIKAN: Prompt untuk instruksi disempurnakan ---
+    // --- PERUBAHAN: Prompt AI telah diterjemahkan ke Bahasa Indonesia ---
     ipcMain.handle('ai:generate-instructions', async (event, { recipeName, ingredients }) => {
         const apiKey = await getApiKey();
         const ingredientNames = ingredients.map(ing => `${ing.food.name} (${ing.quantity} ${ing.unit})`).join(', ');
         const prompt = `
-            Anda adalah seorang penulis resep profesional.
-            Tuliskan langkah-langkah memasak yang jelas, mudah diikuti, dan naratif untuk resep bernama "${recipeName}" dengan bahan-bahan berikut: ${ingredientNames}.
+            Sebagai penulis resep profesional, buat langkah-langkah memasak yang jelas dengan gaya naratif untuk resep bernama "${recipeName}" menggunakan bahan-bahan ini: ${ingredientNames}.
 
-            Aturan Ketat:
-            1.  Gunakan gaya bahasa yang natural dan mengalir, bukan format kaku.
-            2.  Mulai setiap langkah dengan nomor diikuti titik (contoh: "1. ...", "2. ...").
-            3.  Pastikan setiap langkah ada di baris baru.
-            4.  JANGAN gunakan format aneh seperti bold (**), asterisk (*), atau judul tambahan.
-            5.  Hanya berikan teks instruksinya saja.
-
-            Anda HARUS mengembalikan respons dalam format JSON yang ketat dengan satu kunci "instructions" yang berisi seluruh teks instruksi sebagai satu string tunggal.
-
-            Contoh output yang baik untuk resep "Nasi Goreng":
-            {
-                "instructions": "1. Panaskan sedikit minyak di wajan dengan api sedang. Tumis bawang putih dan bawang merah hingga harum.\\n2. Masukkan telur dan buat orak-arik hingga matang. Sisihkan di pinggir wajan.\\n3. Tambahkan nasi putih, kecap manis, garam, dan merica. Aduk cepat hingga semua bumbu tercampur rata dan nasi sedikit kering.\\n4. Koreksi rasa, tambahkan bumbu jika perlu. Sajikan segera selagi hangat."
-            }
+            **ATURAN KRITIKAL:**
+            1.  **Seluruh teks respons HARUS dalam Bahasa Indonesia.**
+            2.  Gunakan bahasa yang alami dan mengalir, bukan format yang kaku.
+            3.  Mulai setiap langkah dengan nomor diikuti titik (contoh: "1. ...").
+            4.  Setiap langkah harus berada di baris baru.
+            5.  JANGAN gunakan format khusus seperti tebal, miring, atau judul tambahan.
+            6.  Anda HARUS mengembalikan objek JSON dengan satu kunci "instructions" yang berisi seluruh teks sebagai satu string.
         `;
         const result = await callGoogleAI(apiKey, prompt);
         return result.instructions || "";
     });
 
-    ipcMain.handle('ai:process-unknown-ingredients', async (event, ingredientNames) => {
+    ipcMain.handle('ai:process-unknown-ingredients', async (event, ingredientSuggestions) => {
         const apiKey = await getApiKey();
         const mainWindow = event.sender;
 
@@ -262,38 +280,74 @@ function registerRecipeHandlers(ipcMain, db) {
         const processedFoods = [];
         const failed = [];
 
-        for (const name of ingredientNames) {
-            const lowerCaseName = name.toLowerCase();
-            if (knownFoodsMap.has(lowerCaseName)) {
-                processedFoods.push(knownFoodsMap.get(lowerCaseName));
-                continue;
-            }
-
+        for (const ingredient of ingredientSuggestions) {
+            const lowerCaseName = ingredient.name.toLowerCase();
+            
             try {
-                mainWindow.send('ai-process-status', { message: `Mencari data untuk "${name}"...` });
-                
-                const aiData = await getGroundedFoodData(apiKey, name);
-                if (aiData.error) throw new Error(aiData.error);
+                if (knownFoodsMap.has(lowerCaseName)) {
+                    const existingFood = knownFoodsMap.get(lowerCaseName);
+                    let conversions = {};
+                    try {
+                        conversions = JSON.parse(existingFood.unit_conversions || '{}');
+                    } catch(e) { log.error("Tidak dapat mem-parse konversi yang ada:", e); }
 
-                const nutrition = aiData.nutrition || {};
-                const newFoodPayload = {
-                    name: name,
-                    calories_kcal: Number(nutrition.calories_kcal) || 0,
-                    protein_g: Number(nutrition.protein_g) || 0,
-                    fat_g: Number(nutrition.fat_g) || 0,
-                    carbs_g: Number(nutrition.carbs_g) || 0,
-                    fiber_g: Number(nutrition.fiber_g) || 0,
-                    price_per_100g: Number(aiData.price_per_100g) || 0,
-                    category: aiData.category || 'Lainnya',
-                };
+                    const unitToFind = ingredient.unit;
+                    if (unitToFind && unitToFind.toLowerCase() !== 'g' && unitToFind.toLowerCase() !== 'gram' && !conversions[unitToFind]) {
+                        log.info(`Memperkaya data bahan "${ingredient.name}" dengan satuan "${unitToFind}" yang hilang`);
+                        mainWindow.send('ai-process-status', { message: `Memperbarui konversi ${unitToFind} untuk "${ingredient.name}"...` });
+                        const grams = await getSpecificConversion(apiKey, ingredient.name, unitToFind);
+                        if (grams && typeof grams === 'number') {
+                            conversions[unitToFind] = grams;
+                            existingFood.unit_conversions = JSON.stringify(conversions);
+                            
+                            await updateFoodInDb(db, existingFood);
+                            log.info(`Berhasil memperbarui "${ingredient.name}" dengan konversi baru.`);
+                        }
+                    }
+                    processedFoods.push({ ...existingFood, quantity: ingredient.quantity, unit: ingredient.unit });
+                } else {
+                    mainWindow.send('ai-process-status', { message: `Mencari data untuk "${ingredient.name}"...` });
+                    
+                    const aiData = await getGroundedFoodDataWithConversions(apiKey, ingredient.name);
+                    if (aiData.error) throw new Error(aiData.error);
 
-                mainWindow.send('ai-process-status', { message: `Menyimpan "${name}" ke database...` });
-                const addedFood = await addFood(db, newFoodPayload);
-                processedFoods.push(addedFood);
+                    let conversions = {};
+                    try {
+                        if (aiData.unit_conversions) {
+                            conversions = JSON.parse(aiData.unit_conversions);
+                        }
+                    } catch (e) { log.error(`Gagal mem-parse konversi awal untuk ${ingredient.name}:`, aiData.unit_conversions); }
 
+                    const unitToFind = ingredient.unit;
+                    if (unitToFind && unitToFind.toLowerCase() !== 'g' && unitToFind.toLowerCase() !== 'gram' && !conversions[unitToFind]) {
+                        log.info(`Konversi untuk "${unitToFind}" tidak ditemukan pada bahan baru "${ingredient.name}". Mengambil secara spesifik.`);
+                        mainWindow.send('ai-process-status', { message: `Mencari konversi ${unitToFind} untuk "${ingredient.name}"...` });
+                        const grams = await getSpecificConversion(apiKey, ingredient.name, unitToFind);
+                        if (grams && typeof grams === 'number') {
+                            conversions[unitToFind] = grams;
+                        }
+                    }
+                    
+                    const nutrition = aiData.nutrition || {};
+                    const newFoodPayload = {
+                        name: ingredient.name,
+                        calories_kcal: Number(nutrition.calories_kcal || nutrition.calories || 0),
+                        protein_g: Number(nutrition.protein_g || nutrition.protein || 0),
+                        fat_g: Number(nutrition.fat_g || nutrition.fat || 0),
+                        carbs_g: Number(nutrition.carbs_g || nutrition.carbohydrates_g || nutrition.carbohydrates || 0),
+                        fiber_g: Number(nutrition.fiber_g || nutrition.fiber || 0),
+                        price_per_100g: Number(aiData.price_per_100g || aiData.estimated_price_per_100g || aiData.estimated_price_idr_per_100g || 0),
+                        category: aiData.category || 'Lainnya',
+                        unit_conversions: JSON.stringify(conversions),
+                    };
+
+                    mainWindow.send('ai-process-status', { message: `Menyimpan "${ingredient.name}" ke database...` });
+                    const addedFood = await addFood(db, newFoodPayload);
+                    processedFoods.push({ ...addedFood, quantity: ingredient.quantity, unit: ingredient.unit });
+                }
             } catch (err) {
-                log.error(`Failed to process ingredient "${name}":`, err);
-                failed.push({ name, reason: err.message });
+                log.error(`Gagal memproses bahan "${ingredient.name}":`, err);
+                failed.push({ name: ingredient.name, reason: err.message });
             }
         }
         

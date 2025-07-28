@@ -1,5 +1,5 @@
 // Lokasi file: src/electron/main.js
-// Deskripsi: Ditambahkan workaround untuk mengabaikan error validasi SSL/TLS dan memprioritaskan IPv4.
+// Deskripsi: Memperbaiki pesan error dialog ke Bahasa Indonesia dan menambahkan workaround jaringan.
 
 const { app, dialog, BrowserWindow, ipcMain } = require('electron');
 const path = require('path');
@@ -7,18 +7,15 @@ const log = require('electron-log');
 const isDev = require('electron-is-dev');
 const { initializeDatabase, getDbInstance, closeDatabase } = require('./database');
 const { registerIpcHandlers } = require('./ipcHandlers');
-const dns = require('dns'); // --- PERBAIKAN: Impor modul DNS ---
+const dns = require('dns');
 
 // --- PERBAIKAN: Prioritaskan DNS lookup ke IPv4 untuk mengatasi masalah ETIMEDOUT ---
 dns.setDefaultResultOrder('ipv4first');
-// ---------------------------------------------------------------------------------
 
-
-// --- PERBAIKAN FINAL: Mengabaikan error validasi sertifikat SSL ---
+// --- PERBAIKAN: Mengabaikan error validasi sertifikat SSL ---
 // Ini akan memaksa Node.js untuk menerima koneksi bahkan jika ada
 // Antivirus/Firewall yang melakukan inspeksi SSL/TLS.
 process.env.NODE_TLS_REJECT_UNAUTHORIZED = '0';
-// ---------------------------------------------------------------------------------
 
 // Konfigurasi logging
 log.transports.file.resolvePathFn = () => path.join(app.getPath('userData'), 'logs/main.log');
@@ -65,7 +62,7 @@ function createWindow() {
     }
 }
 
-log.info('App starting...');
+log.info('Aplikasi dimulai...');
 
 app.whenReady().then(async () => {
     try {
@@ -74,13 +71,14 @@ app.whenReady().then(async () => {
         registerIpcHandlers(db);
         
         ipcMain.on('log-error-to-main', (event, error) => {
-            rendererLogger.error('Error from renderer:', error);
+            rendererLogger.error('Error dari renderer:', error);
         });
 
         createWindow();
     } catch (error) {
-        log.error('Fatal: Could not initialize the application.', error);
-        dialog.showErrorBox('Application Error', 'Could not initialize the application. See logs for details.');
+        log.error('Fatal: Gagal menginisialisasi aplikasi.', error);
+        // --- PERUBAHAN: Pesan error diterjemahkan ke Bahasa Indonesia ---
+        dialog.showErrorBox('Error Aplikasi', 'Gagal menginisialisasi aplikasi. Lihat log untuk detail.');
         app.quit();
     }
 });
@@ -99,5 +97,5 @@ app.on('activate', () => {
 });
 
 app.on('will-quit', () => {
-    log.info('App is quitting.');
+    log.info('Aplikasi akan ditutup.');
 });

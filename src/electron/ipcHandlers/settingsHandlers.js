@@ -1,11 +1,10 @@
 // Lokasi file: src/electron/ipcHandlers/settingsHandlers.js
-// Deskripsi: Handler untuk menyimpan dan mengambil pengaturan, sekarang dengan validasi.
+// Deskripsi: Handler untuk menyimpan dan mengambil pengaturan, dengan validasi.
 
 const log = require('electron-log');
-// --- PERBAIKAN (Isu #1.2): Impor skema pengaturan ---
 const { settingsSchema } = require('../schemas.cjs');
 
-// Nilai default sekarang adalah angka
+// Nilai default
 const defaultSettings = {
     margin: 70,
     operationalCost: 0,
@@ -21,19 +20,17 @@ function registerSettingsHandlers(ipcMain, db) {
                 return defaultSettings;
             }
             const settings = rows.reduce((acc, row) => {
-                // Konversi kembali ke tipe yang benar saat mengambil dari DB
                 const isNumeric = ['margin', 'operationalCost', 'laborCost'].includes(row.key);
                 acc[row.key] = isNumeric ? Number(row.value) : row.value;
                 return acc;
             }, {});
             return { ...defaultSettings, ...settings };
         } catch (err) {
-            log.error('Failed to get settings:', err);
+            log.error('Gagal mengambil pengaturan:', err);
             return defaultSettings;
         }
     });
 
-    // --- PERBAIKAN (Isu #1.2): Menyimpan pengaturan dengan validasi Zod ---
     ipcMain.handle('db:save-settings', async (event, settings) => {
         try {
             // Validasi payload sebelum menyimpan
@@ -48,11 +45,11 @@ function registerSettingsHandlers(ipcMain, db) {
                 }
             }
             await db.runAsync('COMMIT');
-            log.info('Business settings saved successfully.');
+            log.info('Pengaturan bisnis berhasil disimpan.');
             return { success: true };
         } catch (err) {
             await db.runAsync('ROLLBACK');
-            log.error('Failed to save settings:', err);
+            log.error('Gagal menyimpan pengaturan:', err);
             throw err;
         }
     });

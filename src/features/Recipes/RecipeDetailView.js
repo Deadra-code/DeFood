@@ -1,5 +1,5 @@
 // Lokasi file: src/features/Recipes/RecipeDetailView.js
-// Deskripsi: Mengganti Textarea instruksi dengan komponen editor interaktif baru.
+// Deskripsi: Mengirimkan jumlah porsi ke backend saat meminta saran bahan dari AI.
 
 import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { AlertDialog, AlertDialogContent, AlertDialogHeader, AlertDialogTitle, AlertDialogDescription, AlertDialogFooter, AlertDialogCancel, AlertDialogAction } from '../../components/ui/alert-dialog';
@@ -8,7 +8,7 @@ import { Button } from '../../components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '../../components/ui/card';
 import { Input } from '../../components/ui/input';
 import { Label } from '../../components/ui/label';
-import { Textarea } from '../../components/ui/textarea'; // Tetap diimpor untuk deskripsi
+import { Textarea } from '../../components/ui/textarea';
 import { Loader2, AlertCircle, Sparkles } from 'lucide-react';
 import { useNotifier } from '../../hooks/useNotifier';
 import * as api from '../../api/electronAPI';
@@ -25,7 +25,7 @@ import { RecipeAnalysis } from './components/RecipeDetail/RecipeAnalysis';
 import { RecipeIngredientsTable } from './components/RecipeDetail/RecipeIngredientsTable';
 import { AiButton } from './components/RecipeDetail/AiButton';
 import AddIngredientDialog from './components/AddIngredientDialog';
-import { InstructionsEditor } from './components/RecipeDetail/InstructionsEditor'; // --- BARU: Impor editor instruksi ---
+import { InstructionsEditor } from './components/RecipeDetail/InstructionsEditor';
 
 export default function RecipeDetailView({ recipe, onRecipeDeleted, onRecipeUpdated, setIsDirty }) {
     const { notify } = useNotifier();
@@ -86,29 +86,36 @@ export default function RecipeDetailView({ recipe, onRecipeDeleted, onRecipeUpda
         setIsSuggestingAndProcessing(true);
         notify.info(`AI sedang mencari saran bahan untuk "${recipe.name}"...`);
         try {
-            const suggestions = await api.draftIngredients(recipe.name);
+            // --- PERBAIKAN: Kirim nama resep dan jumlah porsi ---
+            const suggestions = await api.draftIngredients({ recipeName: recipe.name, servings: servings });
             if (!suggestions || suggestions.length === 0) {
                 notify.info("AI tidak dapat memberikan saran untuk resep ini.");
                 return;
             }
-            const ingredientNames = suggestions.map(s => s.name);
-            const { processedFoods, failed } = await api.processUnknownIngredients(ingredientNames);
+            
+            const { processedFoods, failed } = await api.processUnknownIngredients(suggestions);
             if (failed.length > 0) {
                 notify.error(`Gagal memproses: ${failed.map(f => f.name).join(', ')}`);
             }
+
             if (processedFoods.length === 0) {
                 notify.info("Tidak ada bahan baru yang bisa ditambahkan.");
                 return;
             }
+
             const ingredientsToAdd = processedFoods.map(food => ({
                 food_id: food.id,
-                quantity: 100,
-                unit: 'g',
+                quantity: food.quantity,
+                unit: food.unit,
             }));
+
             await api.addIngredientsBulk({ recipe_id: recipe.id, ingredients: ingredientsToAdd });
+            
             notify.success(`${ingredientsToAdd.length} bahan berhasil disarankan dan ditambahkan!`);
+            
             await fetchFoods();
             await fetchIngredients();
+
         } catch (err) {
             notify.error(`Terjadi kesalahan: ${err.message}`);
         } finally {
@@ -320,7 +327,6 @@ export default function RecipeDetailView({ recipe, onRecipeDeleted, onRecipeUpda
                 </CardContent>
             </Card>
 
-            {/* --- PERUBAHAN: Menggunakan komponen editor baru --- */}
             <div>
                 <div className="flex items-center gap-2 mb-4">
                     <h2 className="text-lg font-semibold">Instruksi</h2>
@@ -330,14 +336,9 @@ export default function RecipeDetailView({ recipe, onRecipeDeleted, onRecipeUpda
                     initialValue={details.instructions || ''}
                     onSave={(newInstructions) => {
                         handleDetailChange('instructions', newInstructions);
-                        // Anda bisa memilih untuk langsung menyimpan ke DB di sini,
-                        // atau biarkan tombol simpan utama yang melakukannya.
-                        // Untuk konsistensi, kita biarkan tombol utama.
                     }}
                     onDirtyChange={(dirty) => {
-                        // Jika editor menjadi 'dirty', kita perlu memberitahu parent
-                        // agar tombol simpan utama diaktifkan.
-                        // Logika ini bisa disempurnakan jika diperlukan.
+                        // Future improvement: handle dirty state for instructions editor
                     }}
                 />
             </div>
