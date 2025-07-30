@@ -1,7 +1,8 @@
 // Lokasi file: src/features/Recipes/RecipeManagerPage.js
-// Deskripsi: Memindahkan tombol "Resep Baru" ke atas dan menambahkan fitur pengurutan.
+// Deskripsi: (DIPERBAIKI) Menghapus props dan useEffect yang tidak lagi
+//            diperlukan karena logikanya sudah dipindahkan ke App.js.
 
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useMemo } from 'react';
 import { Button } from '../../components/ui/button';
 import { Card, CardContent } from '../../components/ui/card';
 import { PlusCircle, ChevronRight, BookOpen, Search, ArrowUpDown } from 'lucide-react';
@@ -22,20 +23,9 @@ export default function RecipeManagerPage({ activeRecipe, setActiveRecipe, isDir
     
     const [pendingRecipe, setPendingRecipe] = useState(null);
     const [isUnsavedAlertOpen, setIsUnsavedAlertOpen] = useState(false);
-    // --- BARU: State untuk mengelola pengurutan ---
     const [sortOrder, setSortOrder] = useState('name-asc');
 
-    useEffect(() => {
-        if (activeRecipe) {
-            const fullRecipeObject = recipes.find(r => r.id === activeRecipe.id);
-            if(fullRecipeObject) setActiveRecipe(fullRecipeObject);
-        } else if (!recipesLoading && recipes.length > 0) {
-            // Mengurutkan terlebih dahulu sebelum memilih resep pertama
-            const sortedRecipes = [...recipes].sort((a, b) => a.name.localeCompare(b.name));
-            setActiveRecipe(sortedRecipes[0]);
-        }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [recipesLoading]); // Hanya dijalankan saat loading selesai
+    // Menghapus useEffect yang menangani newlyCreatedRecipe karena sudah ditangani oleh App.js
 
     const handleRecipeSelect = (recipe) => {
         if (isDirty) {
@@ -55,59 +45,43 @@ export default function RecipeManagerPage({ activeRecipe, setActiveRecipe, isDir
 
     const handleRecipeDeleted = () => {
         setIsDirty(false);
+        setActiveRecipe(null); 
         refetchRecipes();
-        setActiveRecipe(null);
     };
     
     const handleRecipeUpdated = (updatedRecipe) => {
-        refetchRecipes();
-        setActiveRecipe(updatedRecipe);
+        refetchRecipes().then(() => {
+            setActiveRecipe(updatedRecipe);
+        });
     };
 
-    // --- BARU: Logika untuk memfilter dan mengurutkan resep ---
     const sortedAndFilteredRecipes = useMemo(() => {
         let processedRecipes = recipes.filter(recipe =>
             recipe.name.toLowerCase().includes(searchTerm.toLowerCase())
         );
-
         processedRecipes.sort((a, b) => {
             switch (sortOrder) {
-                case 'name-asc':
-                    return a.name.localeCompare(b.name);
-                case 'name-desc':
-                    return b.name.localeCompare(a.name);
-                case 'date-desc':
-                    return new Date(b.created_at) - new Date(a.created_at);
-                case 'date-asc':
-                    return new Date(a.created_at) - new Date(b.created_at);
-                default:
-                    return 0;
+                case 'name-asc': return a.name.localeCompare(b.name);
+                case 'name-desc': return b.name.localeCompare(a.name);
+                case 'date-desc': return new Date(b.created_at) - new Date(a.created_at);
+                case 'date-asc': return new Date(a.created_at) - new Date(b.created_at);
+                default: return 0;
             }
         });
-
         return processedRecipes;
     }, [recipes, searchTerm, sortOrder]);
 
     return (
         <div className="grid grid-cols-[320px_1fr] h-full bg-muted/30">
             <aside className="border-r bg-card flex flex-col h-full animate-slide-in-from-left">
-                {/* --- PERUBAHAN: Header panel kiri --- */}
                 <div className="p-4 border-b flex flex-col gap-4">
                     <div className="flex gap-2">
                         <div className="relative flex-grow">
                             <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
-                            <Input 
-                                type="search" 
-                                placeholder="Cari resep..." 
-                                className="pl-8"
-                                value={searchTerm}
-                                onChange={(e) => setSearchTerm(e.target.value)}
-                            />
+                            <Input type="search" placeholder="Cari resep..." className="pl-8" value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} />
                         </div>
                         <DropdownMenu>
-                            <DropdownMenuTrigger asChild>
-                                <Button variant="outline" size="icon"><ArrowUpDown className="h-4 w-4" /></Button>
-                            </DropdownMenuTrigger>
+                            <DropdownMenuTrigger asChild><Button variant="outline" size="icon"><ArrowUpDown className="h-4 w-4" /></Button></DropdownMenuTrigger>
                             <DropdownMenuContent align="end">
                                 <DropdownMenuItem onClick={() => setSortOrder('name-asc')}>Nama (A-Z)</DropdownMenuItem>
                                 <DropdownMenuItem onClick={() => setSortOrder('name-desc')}>Nama (Z-A)</DropdownMenuItem>
@@ -116,10 +90,7 @@ export default function RecipeManagerPage({ activeRecipe, setActiveRecipe, isDir
                             </DropdownMenuContent>
                         </DropdownMenu>
                     </div>
-                    {/* --- PERUBAHAN: Tombol "Resep Baru" dipindahkan ke atas --- */}
-                    <Button className="w-full" onClick={() => setIsCreatingRecipe(true)}>
-                        <PlusCircle className="mr-2 h-4 w-4" /> Resep Baru
-                    </Button>
+                    <Button className="w-full" onClick={() => setIsCreatingRecipe(true)}><PlusCircle className="mr-2 h-4 w-4" /> Resep Baru</Button>
                 </div>
                 <div className="flex-grow overflow-y-auto">
                     {recipesLoading ? (
@@ -127,15 +98,7 @@ export default function RecipeManagerPage({ activeRecipe, setActiveRecipe, isDir
                     ) : sortedAndFilteredRecipes.length > 0 ? (
                         <div className="space-y-2 p-4">
                             {sortedAndFilteredRecipes.map((recipe, index) => (
-                                <Card 
-                                    key={recipe.id} 
-                                    onClick={() => handleRecipeSelect(recipe)} 
-                                    className={cn(
-                                        "cursor-pointer transition-all hover:border-primary/80 animate-fade-in-up",
-                                        activeRecipe?.id === recipe.id ? 'border-primary bg-primary/5' : ''
-                                    )}
-                                    style={{ animationDelay: `${index * 50}ms` }}
-                                >
+                                <Card key={recipe.id} onClick={() => handleRecipeSelect(recipe)} className={cn("cursor-pointer transition-all hover:border-primary/80 animate-fade-in-up", activeRecipe?.id === recipe.id ? 'border-primary bg-primary/5' : '')} style={{ animationDelay: `${index * 50}ms` }}>
                                     <CardContent className="p-3 flex justify-between items-center gap-2">
                                         <p className="font-semibold truncate flex-1 min-w-0">{recipe.name}</p>
                                         <ChevronRight className="h-5 w-5 text-muted-foreground flex-shrink-0" />
@@ -145,9 +108,7 @@ export default function RecipeManagerPage({ activeRecipe, setActiveRecipe, isDir
                         </div>
                     ) : (
                          <div className="p-4 h-full flex items-center justify-center">
-                            <EmptyState icon={<BookOpen className="h-16 w-16" />} title="Tidak Ada Resep" description="Buat resep pertama Anda untuk memulai.">
-                                <Button onClick={() => setIsCreatingRecipe(true)}><PlusCircle className="mr-2 h-4 w-4" /> Buat Resep</Button>
-                            </EmptyState>
+                            <EmptyState icon={<BookOpen className="h-16 w-16" />} title="Tidak Ada Resep" description="Buat resep pertama Anda untuk memulai."><Button onClick={() => setIsCreatingRecipe(true)}><PlusCircle className="mr-2 h-4 w-4" /> Buat Resep</Button></EmptyState>
                         </div>
                     )}
                 </div>
@@ -155,13 +116,7 @@ export default function RecipeManagerPage({ activeRecipe, setActiveRecipe, isDir
             
             <main className="flex-grow overflow-y-auto animate-slide-in-from-right" style={{ animationDelay: '100ms' }}>
                 {activeRecipe ? (
-                    <RecipeDetailView
-                        key={activeRecipe.id}
-                        recipe={activeRecipe}
-                        onRecipeDeleted={handleRecipeDeleted}
-                        onRecipeUpdated={handleRecipeUpdated}
-                        setIsDirty={setIsDirty}
-                    />
+                    <RecipeDetailView key={activeRecipe.id} recipe={activeRecipe} onRecipeDeleted={handleRecipeDeleted} onRecipeUpdated={handleRecipeUpdated} setIsDirty={setIsDirty} />
                 ) : !recipesLoading && (
                     <div className="flex flex-col items-center justify-center h-full text-center">
                         <BookOpen className="h-16 w-16 text-muted-foreground/50 mb-4" />
@@ -171,20 +126,7 @@ export default function RecipeManagerPage({ activeRecipe, setActiveRecipe, isDir
                 )}
             </main>
 
-            <AlertDialog open={isUnsavedAlertOpen} onOpenChange={setIsUnsavedAlertOpen}>
-                <AlertDialogContent>
-                    <AlertDialogHeader>
-                        <AlertDialogTitle>Perubahan Belum Disimpan</AlertDialogTitle>
-                        <AlertDialogDescription>
-                            Anda memiliki perubahan yang belum disimpan. Jika Anda melanjutkan, perubahan tersebut akan hilang. Apakah Anda yakin?
-                        </AlertDialogDescription>
-                    </AlertDialogHeader>
-                    <AlertDialogFooter>
-                        <AlertDialogCancel>Batal</AlertDialogCancel>
-                        <AlertDialogAction onClick={confirmRecipeChange}>Lanjutkan</AlertDialogAction>
-                    </AlertDialogFooter>
-                </AlertDialogContent>
-            </AlertDialog>
+            <AlertDialog open={isUnsavedAlertOpen} onOpenChange={setIsUnsavedAlertOpen}><AlertDialogContent><AlertDialogHeader><AlertDialogTitle>Perubahan Belum Disimpan</AlertDialogTitle><AlertDialogDescription>Anda memiliki perubahan yang belum disimpan. Jika Anda melanjutkan, perubahan tersebut akan hilang. Apakah Anda yakin?</AlertDialogDescription></AlertDialogHeader><AlertDialogFooter><AlertDialogCancel>Batal</AlertDialogCancel><AlertDialogAction onClick={confirmRecipeChange}>Lanjutkan</AlertDialogAction></AlertDialogFooter></AlertDialogContent></AlertDialog>
         </div>
     );
 }

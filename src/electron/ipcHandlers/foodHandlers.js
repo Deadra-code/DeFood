@@ -1,5 +1,5 @@
 // Lokasi file: src/electron/ipcHandlers/foodHandlers.js
-// Deskripsi: Handler untuk semua operasi terkait bahan makanan, dengan prompt AI yang sudah diterjemahkan.
+// Deskripsi: Handler untuk semua operasi terkait bahan makanan, dengan tambahan handler untuk hapus massal.
 
 const log = require('electron-log');
 const { foodSchema } = require('../schemas.cjs');
@@ -92,6 +92,23 @@ function registerFoodHandlers(ipcMain, db) {
     ipcMain.handle('db:delete-food', async (event, id) => {
         await db.runAsync("DELETE FROM foods WHERE id = ?", [id]);
         return { success: true };
+    });
+
+    // --- BARU: Handler untuk menghapus beberapa bahan sekaligus ---
+    ipcMain.handle('db:delete-foods-bulk', async (event, ids) => {
+        if (!Array.isArray(ids) || ids.length === 0) {
+            throw new Error("Payload tidak valid: harus berupa array ID.");
+        }
+        const placeholders = ids.map(() => '?').join(',');
+        const sql = `DELETE FROM foods WHERE id IN (${placeholders})`;
+        try {
+            await db.runAsync(sql, ids);
+            log.info(`${ids.length} bahan berhasil dihapus.`);
+            return { success: true, count: ids.length };
+        } catch (err) {
+            log.error('Gagal menghapus bahan secara massal:', err);
+            throw err;
+        }
     });
 
     ipcMain.handle('ai:get-grounded-food-data', async (event, foodName) => {

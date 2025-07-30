@@ -1,5 +1,6 @@
 // Lokasi file: src/context/RecipeContext.js
-// Deskripsi: Diperbarui untuk menstandarisasi strategi pembaruan data.
+// Deskripsi: Menerapkan pembaruan state optimis. UI tidak lagi menunggu
+//            refetch untuk menampilkan perubahan.
 
 import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
 import * as api from '../api/electronAPI';
@@ -33,7 +34,8 @@ export const RecipeProvider = ({ children }) => {
     const addRecipe = async (recipe) => {
         try {
             const newRecipe = await api.addRecipe(recipe);
-            await fetchRecipes(); // Muat ulang daftar untuk konsistensi
+            // Pembaruan Optimis
+            setRecipes(prev => [...prev, newRecipe].sort((a, b) => a.name.localeCompare(b.name)));
             return newRecipe; 
         } catch (err) {
             console.error("Add recipe error:", err);
@@ -41,33 +43,37 @@ export const RecipeProvider = ({ children }) => {
         }
     };
     
-    // --- PERBAIKAN (Isu #3): updateRecipe sekarang me-refetch data untuk konsistensi ---
-    const updateRecipe = async (recipe) => {
+    const updateRecipe = async (recipeToUpdate) => {
+        const originalRecipes = [...recipes];
+        // Pembaruan Optimis
+        setRecipes(prev => prev.map(r => r.id === recipeToUpdate.id ? recipeToUpdate : r));
         try {
-            await api.updateRecipeDetails(recipe);
-            await fetchRecipes(); // Muat ulang daftar untuk memastikan data sinkron
-            return true;
+            await api.updateRecipeDetails(recipeToUpdate);
         } catch (err) {
             console.error("Update recipe error:", err);
-            throw err; // Lempar error agar bisa ditangani di UI
+            setRecipes(originalRecipes); // Kembalikan jika gagal
+            throw err;
         }
     };
 
     const deleteRecipe = async (recipeId) => {
+        const originalRecipes = [...recipes];
+        // Pembaruan Optimis
+        setRecipes(prev => prev.filter(r => r.id !== recipeId));
         try {
             await api.deleteRecipe(recipeId);
-            await fetchRecipes(); // Muat ulang daftar setelah menghapus
-            return true;
         } catch (err) {
             console.error("Delete recipe error:", err);
-            throw err; // Lempar error agar bisa ditangani di UI
+            setRecipes(originalRecipes); // Kembalikan jika gagal
+            throw err;
         }
     };
 
     const duplicateRecipe = async (recipeId) => {
         try {
             const newRecipe = await api.duplicateRecipe(recipeId);
-            await fetchRecipes();
+            // Pembaruan Optimis
+            setRecipes(prev => [...prev, newRecipe].sort((a, b) => a.name.localeCompare(b.name)));
             return newRecipe;
         } catch (err) {
             console.error("Duplicate recipe error:", err);

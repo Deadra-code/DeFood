@@ -1,5 +1,6 @@
 // Lokasi file: src/features/Recipes/components/RecipeDetail/RecipeAnalysis.jsx
-// Deskripsi: Komponen untuk menampilkan semua kartu analisis resep.
+// Deskripsi: (DIPERBARUI) Komponen ini sekarang menerima dan meneruskan prop
+//            margin keuntungan ke CostAnalysisCard.
 
 import React from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '../../../../components/ui/card';
@@ -19,7 +20,16 @@ const StatCard = ({ title, value, icon }) => (
     </Card>
 );
 
-export const RecipeAnalysis = ({ recipeTotals, servings, ingredients }) => {
+export const RecipeAnalysis = ({ 
+    recipeId, 
+    recipeTotals, 
+    servings, 
+    ingredients, 
+    operationalCost, 
+    laborCost, 
+    margin,
+    onCostChange 
+}) => {
     const safeServings = servings > 0 ? servings : 1;
     const hppPerPortion = recipeTotals.price / safeServings;
 
@@ -27,9 +37,14 @@ export const RecipeAnalysis = ({ recipeTotals, servings, ingredients }) => {
         <div className="grid gap-4 grid-cols-2">
             <StatCard title="Total Kalori / Porsi" value={`${(recipeTotals.calories / safeServings).toFixed(0)} kkal`} icon={<Flame className="h-4 w-4 text-muted-foreground" />} />
             <CostAnalysisCard
+                key={recipeId}
                 hppPerPortion={hppPerPortion}
                 ingredients={ingredients}
                 servings={servings}
+                operationalCost={operationalCost}
+                laborCost={laborCost}
+                margin={margin} // Meneruskan prop
+                onCostChange={onCostChange}
             />
             <MacroBarChart
                 protein={recipeTotals.protein / safeServings}

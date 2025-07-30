@@ -1,5 +1,6 @@
 // Lokasi file: src/features/Recipes/components/RecipeDetail/RecipeIngredientsTable.jsx
-// Deskripsi: Tabel interaktif untuk mengelola bahan resep dengan drag-and-drop, edit langsung, dan hapus massal.
+// Deskripsi: Versi stabil yang mengelola state-nya sendiri, sebelum
+//            logika dipindahkan ke custom hook.
 
 import React, { useState, useEffect } from 'react';
 import { DragDropContext, Droppable, Draggable } from '@hello-pangea/dnd';
@@ -30,7 +31,6 @@ export const RecipeIngredientsTable = ({
     const [selectedIngredients, setSelectedIngredients] = useState(new Set());
     const [isConfirmDeleteDialogOpen, setIsConfirmDeleteDialogOpen] = useState(false);
 
-    // Reset pilihan jika daftar bahan berubah
     useEffect(() => {
         setSelectedIngredients(new Set());
     }, [ingredients]);
@@ -181,7 +181,7 @@ export const RecipeIngredientsTable = ({
                                                             </Tooltip>
                                                             <Tooltip>
                                                                 <TooltipTrigger asChild>
-                                                                    <Button variant="ghost" size="icon" onClick={() => deleteIngredient(ing.id)}>
+                                                                    <Button variant="ghost" size="icon" onClick={() => deleteIngredient(ing)}>
                                                                         <Trash2 className="h-4 w-4 text-destructive" />
                                                                     </Button>
                                                                 </TooltipTrigger>

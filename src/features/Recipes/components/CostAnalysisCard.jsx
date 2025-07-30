@@ -1,12 +1,12 @@
 // Lokasi file: src/features/Recipes/components/CostAnalysisCard.jsx
-// Deskripsi: Menambahkan pemeriksaan keamanan untuk prop 'ingredients'.
+// Deskripsi: (DIPERBARUI) Margin keuntungan sekarang dikelola melalui props
+//            (margin dan onCostChange), tidak lagi dari SettingsContext.
 
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useMemo } from 'react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '../../../components/ui/card';
 import { Label } from '../../../components/ui/label';
 import { Input } from '../../../components/ui/input';
 import { Slider } from '../../../components/ui/slider';
-import { useSettingsContext } from '../../../context/SettingsContext';
 import { HelpCircle, Info } from 'lucide-react';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '../../../components/ui/tooltip';
 import { Popover, PopoverContent, PopoverTrigger } from '../../../components/ui/popover';
@@ -25,12 +25,13 @@ function convertToGrams(food, quantity, unit) {
         const conversionRate = conversions[unit];
         if (typeof conversionRate === 'number') return quantity * conversionRate;
     } catch (e) { console.error("Error parsing unit conversions:", e); }
-    return quantity;
+    return 0;
 }
 
-const HppDetailsPopover = ({ ingredients = [], servings }) => { // PERBAIKAN: Default value untuk ingredients
+const HppDetailsPopover = ({ ingredients = [], servings }) => {
     const safeServings = servings > 0 ? servings : 1;
     const totalHpp = useMemo(() => {
+        if (!Array.isArray(ingredients)) return 0;
         return ingredients.reduce((acc, ing) => {
             const quantityInGrams = convertToGrams(ing.food, ing.quantity, ing.unit);
             const multiplier = quantityInGrams / 100;
@@ -49,14 +50,12 @@ const HppDetailsPopover = ({ ingredients = [], servings }) => { // PERBAIKAN: De
             <PopoverContent className="w-80">
                 <div className="space-y-2">
                     <h4 className="font-medium leading-none">Rincian HPP per Porsi</h4>
-                    <p className="text-sm text-muted-foreground">
-                        Biaya bahan baku dibagi dengan jumlah porsi.
-                    </p>
+                    <p className="text-sm text-muted-foreground">Biaya bahan baku dibagi dengan jumlah porsi.</p>
                 </div>
                 <Table className="mt-4">
                     <TableHeader><TableRow><TableHead>Bahan</TableHead><TableHead className="text-right">Biaya</TableHead></TableRow></TableHeader>
                     <TableBody>
-                        {ingredients.map(ing => {
+                        {Array.isArray(ingredients) && ingredients.map(ing => {
                             const quantityInGrams = convertToGrams(ing.food, ing.quantity, ing.unit);
                             const multiplier = quantityInGrams / 100;
                             const costPerIngredient = (ing.food.price_per_100g || 0) * multiplier;
@@ -76,27 +75,23 @@ const HppDetailsPopover = ({ ingredients = [], servings }) => { // PERBAIKAN: De
     );
 };
 
-
-export default function CostAnalysisCard({ hppPerPortion, ingredients, servings }) {
-    const { settings, loading } = useSettingsContext();
-    const [margin, setMargin] = useState(70);
-
-    useEffect(() => {
-        if (!loading) {
-            setMargin(parseFloat(settings.margin) || 70);
-        }
-    }, [settings, loading]);
-
-    const opCost = parseFloat(settings.operationalCost) || 0;
-    const laborCost = parseFloat(settings.laborCost) || 0;
-    const totalModalCost = hppPerPortion + opCost + laborCost;
-    const profitPerPortion = totalModalCost * (margin / 100);
+export default function CostAnalysisCard({ 
+    hppPerPortion, 
+    ingredients, 
+    servings,
+    operationalCost,
+    laborCost,
+    margin,
+    onCostChange,
+}) {
+    const opCost = parseFloat(operationalCost) || 0;
+    const labCost = parseFloat(laborCost) || 0;
+    const currentMargin = margin === undefined ? 50 : parseFloat(margin);
+    
+    const totalModalCost = hppPerPortion + opCost + labCost;
+    const profitPerPortion = totalModalCost * (currentMargin / 100);
     const sellingPrice = totalModalCost + profitPerPortion;
     const roundedSellingPrice = Math.ceil(sellingPrice / 500) * 500;
-
-    if (loading) {
-        return <Card><CardHeader><CardTitle>Memuat Analisis Biaya...</CardTitle></CardHeader></Card>;
-    }
 
     return (
         <TooltipProvider>
@@ -111,19 +106,48 @@ export default function CostAnalysisCard({ hppPerPortion, ingredients, servings 
                             <span className="flex items-center">HPP Bahan Baku / Porsi <HppDetailsPopover ingredients={ingredients} servings={servings} /></span> 
                             <span>{formatCurrency(hppPerPortion)}</span>
                         </div>
-                        <div className="flex justify-between"><span>Biaya Operasional / Porsi</span> <span>{formatCurrency(opCost)}</span></div>
-                        <div className="flex justify-between"><span>Biaya Tenaga Kerja / Porsi</span> <span>{formatCurrency(laborCost)}</span></div>
+                        <div className="flex justify-between items-center">
+                            <Label htmlFor="opCost-input">Biaya Operasional / Porsi</Label>
+                            <Input 
+                                id="opCost-input" 
+                                type="number" 
+                                value={opCost} 
+                                onChange={e => onCostChange('cost_operational_recipe', e.target.value)} 
+                                className="w-28 h-8 text-right"
+                            />
+                        </div>
+                        <div className="flex justify-between items-center">
+                            <Label htmlFor="laborCost-input">Biaya Tenaga Kerja / Porsi</Label>
+                            <Input 
+                                id="laborCost-input" 
+                                type="number" 
+                                value={labCost} 
+                                onChange={e => onCostChange('cost_labor_recipe', e.target.value)} 
+                                className="w-28 h-8 text-right"
+                            />
+                        </div>
                         <div className="flex justify-between font-bold border-t pt-2 mt-2"><span>Total Biaya Modal / Porsi</span> <span>{formatCurrency(totalModalCost)}</span></div>
                     </div>
                     <div className="space-y-3 pt-4 border-t">
                         <div className="flex items-center justify-between">
                             <Label htmlFor="margin-input" className="flex items-center">
-                                Margin Keuntungan
+                                Margin Keuntungan (%)
                                 <Tooltip><TooltipTrigger asChild><HelpCircle className="h-4 w-4 ml-1.5 text-muted-foreground" /></TooltipTrigger><TooltipContent><p>Sesuaikan margin untuk resep ini.</p></TooltipContent></Tooltip>
                             </Label>
-                            <Input id="margin-input" type="number" value={margin} onChange={e => setMargin(Number(e.target.value))} className="w-20 h-8 text-right" />
+                            <Input 
+                                id="margin-input" 
+                                type="number" 
+                                value={currentMargin} 
+                                onChange={e => onCostChange('margin_percent', e.target.value)} 
+                                className="w-20 h-8 text-right" 
+                            />
                         </div>
-                        <Slider value={[margin]} onValueChange={(value) => setMargin(value[0])} max={200} step={1} />
+                        <Slider 
+                            value={[currentMargin]} 
+                            onValueChange={(value) => onCostChange('margin_percent', value[0])} 
+                            max={200} 
+                            step={1} 
+                        />
                     </div>
                     <div className="space-y-2 text-sm">
                          <div className="flex justify-between"><span>Profit / Porsi</span> <span>{formatCurrency(profitPerPortion)}</span></div>

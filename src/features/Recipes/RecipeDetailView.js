@@ -1,5 +1,7 @@
 // Lokasi file: src/features/Recipes/RecipeDetailView.js
-// Deskripsi: Memperbaiki nama fungsi 'updateRecipeDetails' menjadi 'updateRecipe' agar sesuai dengan context.
+// Deskripsi: (LENGKAP & TERBARU) Mengelola state lengkap untuk detail resep,
+//            termasuk biaya dan margin yang spesifik, dan meneruskannya ke
+//            komponen anak untuk ditampilkan dan diedit.
 
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { AlertDialog, AlertDialogContent, AlertDialogHeader, AlertDialogTitle, AlertDialogDescription, AlertDialogFooter, AlertDialogCancel, AlertDialogAction } from '../../components/ui/alert-dialog';
@@ -9,7 +11,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '../../components/ui/ca
 import { Input } from '../../components/ui/input';
 import { Label } from '../../components/ui/label';
 import { Textarea } from '../../components/ui/textarea';
-import { Loader2, AlertCircle, Sparkles } from 'lucide-react';
+import { Loader2, AlertCircle } from 'lucide-react';
 import { useNotifier } from '../../hooks/useNotifier';
 import * as api from '../../api/electronAPI';
 import { useRecipeContext } from '../../context/RecipeContext';
@@ -18,6 +20,9 @@ import { useFoodContext } from '../../context/FoodContext';
 import { calculateRecipeTotals, validateIngredientsForCalculation } from '../../utils/nutritionCalculator';
 import jsPDF from 'jspdf';
 import 'jspdf-autotable';
+import { isEqual, cloneDeep } from 'lodash';
+import { toast } from 'react-hot-toast';
+import UndoToast from '../../components/ui/UndoToast';
 
 import { RecipeHeader } from './components/RecipeDetail/RecipeHeader';
 import { RecipeAnalysis } from './components/RecipeDetail/RecipeAnalysis';
@@ -25,25 +30,26 @@ import { RecipeIngredientsTable } from './components/RecipeDetail/RecipeIngredie
 import { AiButton } from './components/RecipeDetail/AiButton';
 import AddIngredientDialog from './components/AddIngredientDialog';
 import { InstructionsEditor } from './components/RecipeDetail/InstructionsEditor';
-import { isEqual } from 'lodash';
 
 export default function RecipeDetailView({ recipe, onRecipeDeleted, onRecipeUpdated, setIsDirty: setParentIsDirty }) {
     const { notify } = useNotifier();
-    // --- PERBAIKAN: Mengubah nama 'updateRecipeDetails' menjadi 'updateRecipe' ---
     const { duplicateRecipe, updateRecipe } = useRecipeContext();
     const { setFoodToEdit } = useUIStateContext();
-    const { fetchFoods } = useFoodContext();
+    const { foods, updateCounter } = useFoodContext();
     
     const [editableRecipe, setEditableRecipe] = useState(null);
     const [initialRecipe, setInitialRecipe] = useState(null);
-
-    const [servings, setServings] = useState(1);
+    
     const [isLoading, setIsLoading] = useState(true);
     const [isSaving, setIsSaving] = useState(false);
     const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
     const [calculationErrors, setCalculationErrors] = useState([]);
     const [aiLoading, setAiLoading] = useState({ title: false, description: false, instructions: false });
-    const [isSuggestingAndProcessing, setIsSuggestingAndProcessing] = useState(false);
+    
+    const [nameSuggestions, setNameSuggestions] = useState([]);
+    const [isSuggestionPopoverOpen, setIsSuggestionPopoverOpen] = useState(false);
+    
+    const [lastDeletedIngredient, setLastDeletedIngredient] = useState(null);
 
     const isDirty = useMemo(() => {
         if (!initialRecipe || !editableRecipe) return false;
@@ -65,12 +71,9 @@ export default function RecipeDetailView({ recipe, onRecipeDeleted, onRecipeUpda
         setIsLoading(true);
         try {
             const ingredientList = await api.getIngredientsForRecipe(recipe.id);
-            const fullRecipeData = {
-                ...recipe,
-                ingredients: ingredientList || [],
-            };
-            setEditableRecipe(JSON.parse(JSON.stringify(fullRecipeData)));
-            setInitialRecipe(JSON.parse(JSON.stringify(fullRecipeData)));
+            const fullRecipeData = { ...recipe, servings: recipe.servings || 1, ingredients: ingredientList || [] };
+            setEditableRecipe(cloneDeep(fullRecipeData));
+            setInitialRecipe(cloneDeep(fullRecipeData));
         } catch (err) {
             notify.error("Gagal memuat data resep lengkap.");
         } finally {
@@ -80,33 +83,48 @@ export default function RecipeDetailView({ recipe, onRecipeDeleted, onRecipeUpda
 
     useEffect(() => {
         fetchAndSetRecipeData();
-        setServings(1);
-    }, [recipe, fetchAndSetRecipeData]);
-    
+    }, [recipe.id, fetchAndSetRecipeData]);
+
+    useEffect(() => {
+        if (!editableRecipe || !Array.isArray(editableRecipe.ingredients) || foods.length === 0) return;
+        
+        let needsSync = false;
+        const newIngredients = editableRecipe.ingredients.map(ing => {
+            if (!ing.food) return ing;
+            const updatedFoodData = foods.find(f => f.id === ing.food.id);
+            if (updatedFoodData && JSON.stringify(ing.food) !== JSON.stringify(updatedFoodData)) {
+                needsSync = true;
+                return { ...ing, food: updatedFoodData };
+            }
+            return ing;
+        });
+
+        if (needsSync) {
+            setEditableRecipe(prevRecipe => ({ ...prevRecipe, ingredients: newIngredients }));
+        }
+    }, [updateCounter, foods]); 
+
     const handleDataChange = (field, value) => {
-        setEditableRecipe(prev => ({ ...prev, [field]: value }));
+        const isNumericField = ['cost_operational_recipe', 'cost_labor_recipe', 'margin_percent', 'servings'].includes(field);
+        const processedValue = isNumericField ? parseFloat(value) || 0 : value;
+        setEditableRecipe(prev => ({ ...prev, [field]: processedValue }));
     };
 
     const handleIngredientsChange = (newIngredients) => {
-        setEditableRecipe(prev => ({ ...prev, ingredients: newIngredients }));
+        if (Array.isArray(newIngredients)) {
+            setEditableRecipe(prev => ({ ...prev, ingredients: newIngredients }));
+        }
     };
 
-    const handleEditIngredientFood = (foodToEdit) => {
-        setFoodToEdit({ 
-            ...foodToEdit, 
-            isNew: false,
-            source: 'recipe-edit' 
-        });
-    };
+    const handleEditIngredientFood = (foodToEdit) => setFoodToEdit({ ...foodToEdit, isNew: false, source: 'recipe-edit' });
 
     const handleSave = async () => {
         setIsSaving(true);
         try {
-            // --- PERBAIKAN: Memanggil fungsi 'updateRecipe' yang benar ---
             await updateRecipe(editableRecipe);
             notify.success("Resep berhasil disimpan.");
             onRecipeUpdated(editableRecipe);
-            setInitialRecipe(JSON.parse(JSON.stringify(editableRecipe)));
+            await fetchAndSetRecipeData();
         } catch (err) {
             notify.error(`Gagal menyimpan resep: ${err.message}`);
         } finally {
@@ -135,86 +153,73 @@ export default function RecipeDetailView({ recipe, onRecipeDeleted, onRecipeUpda
         }
     };
     
-    const handleAiIngredientSuggestion = async () => {
-        if (!editableRecipe.name) {
-            notify.error("Nama resep tidak valid untuk menghasilkan saran.");
-            return;
-        }
-        setIsSuggestingAndProcessing(true);
-        notify.info(`AI sedang mencari saran bahan untuk "${editableRecipe.name}"...`);
-        try {
-            const suggestions = await api.draftIngredients({ recipeName: editableRecipe.name, servings: servings });
-            if (!suggestions || suggestions.length === 0) {
-                notify.info("AI tidak dapat memberikan saran untuk resep ini.");
-                return;
-            }
-            
-            const ingredientNames = suggestions.map(s => ({ name: s.name, quantity: s.quantity, unit: s.unit }));
-            const { processedFoods, failed } = await api.processUnknownIngredients(ingredientNames);
-            
-            if (failed.length > 0) {
-                notify.error(`Gagal memproses: ${failed.map(f => f.name).join(', ')}`);
-            }
+    const deleteIngredient = (ingredientToDelete) => {
+        const originalIngredients = editableRecipe.ingredients || [];
+        const originalIndex = originalIngredients.findIndex(ing => ing.id === ingredientToDelete.id);
+        if (originalIndex === -1) return;
 
-            if (processedFoods.length === 0) {
-                notify.info("Tidak ada bahan baru yang bisa ditambahkan.");
-                return;
-            }
+        setLastDeletedIngredient({ item: ingredientToDelete, index: originalIndex });
 
-            const newIngredientsToAdd = processedFoods.map(food => ({
-                id: `new-${food.id}-${Date.now()}`, 
-                quantity: food.quantity,
-                unit: food.unit,
-                food: food
-            }));
-
-            handleIngredientsChange([...editableRecipe.ingredients, ...newIngredientsToAdd]);
-            notify.success(`${newIngredientsToAdd.length} bahan berhasil disarankan dan ditambahkan!`);
-            fetchFoods();
-
-        } catch (err) {
-            notify.error(`Terjadi kesalahan: ${err.message}`);
-        } finally {
-            setIsSuggestingAndProcessing(false);
-        }
-    };
-
-    const deleteIngredient = (ingredientId) => {
-        const newIngredients = editableRecipe.ingredients.filter(ing => ing.id !== ingredientId);
+        const newIngredients = originalIngredients.filter(ing => ing.id !== ingredientToDelete.id);
         handleIngredientsChange(newIngredients);
-    };
-    
-    const handleBulkDeleteIngredients = (ingredientIds) => {
-        const newIngredients = editableRecipe.ingredients.filter(ing => !ingredientIds.includes(ing.id));
-        handleIngredientsChange(newIngredients);
+
+        toast.custom(
+            (t) => (
+                <UndoToast
+                    t={t}
+                    message={`Bahan "${ingredientToDelete.food.name}" dihapus.`}
+                    onUndo={() => handleUndoDeleteIngredient(t.id)}
+                />
+            ),
+            { duration: 5000 }
+        );
     };
 
+    const handleUndoDeleteIngredient = (toastId) => {
+        if (lastDeletedIngredient) {
+            const { item, index } = lastDeletedIngredient;
+            const currentIngredients = editableRecipe.ingredients || [];
+            const newIngredients = [...currentIngredients];
+            
+            newIngredients.splice(index, 0, item);
+            handleIngredientsChange(newIngredients);
+            
+            setLastDeletedIngredient(null);
+            notify.success("Penghapusan dibatalkan.");
+        }
+        if (toastId) toast.dismiss(toastId);
+    };
+
+    const handleBulkDeleteIngredients = (ids) => {
+        if (Array.isArray(editableRecipe?.ingredients)) {
+            handleIngredientsChange(editableRecipe.ingredients.filter(ing => !ids.includes(ing.id)));
+        }
+    };
     const handleOnDragEnd = (result) => {
-        if (!result.destination) return;
+        if (!result.destination || !Array.isArray(editableRecipe?.ingredients)) return;
         const items = Array.from(editableRecipe.ingredients);
         const [reorderedItem] = items.splice(result.source.index, 1);
         items.splice(result.destination.index, 0, reorderedItem);
         handleIngredientsChange(items);
     };
-
     const handleUpdateIngredient = (id, quantity, unit) => {
-        const newIngredients = editableRecipe.ingredients.map(ing => ing.id === id ? { ...ing, quantity, unit } : ing);
-        handleIngredientsChange(newIngredients);
+        if (Array.isArray(editableRecipe?.ingredients)) {
+            handleIngredientsChange(editableRecipe.ingredients.map(ing => ing.id === id ? { ...ing, quantity, unit } : ing));
+        }
     };
     
     const handleExportPDF = () => {
+        if (!editableRecipe || !Array.isArray(editableRecipe.ingredients)) {
+            notify.error("Tidak ada data bahan untuk diekspor.");
+            return;
+        }
         const doc = new jsPDF();
         doc.text(editableRecipe.name, 14, 22);
-        doc.text(`Porsi: ${servings}`, 14, 32);
-        doc.autoTable({ 
-            startY: 40, 
-            head: [['Nama Bahan', 'Jumlah', 'Satuan']], 
-            body: editableRecipe.ingredients.map(ing => [ing.food.name, ing.quantity, ing.unit]) 
-        });
+        doc.text(`Porsi: ${editableRecipe.servings || 1}`, 14, 32);
+        doc.autoTable({ startY: 40, head: [['Nama Bahan', 'Jumlah', 'Satuan']], body: editableRecipe.ingredients.map(ing => [ing.food.name, ing.quantity, ing.unit]) });
         const finalY = doc.lastAutoTable.finalY;
         doc.text('Instruksi', 14, finalY + 10);
         doc.text(editableRecipe.instructions || 'Tidak ada instruksi.', 14, finalY + 20, { maxWidth: 180 });
-        
         doc.save(`${editableRecipe.name}.pdf`);
     };
 
@@ -222,8 +227,13 @@ export default function RecipeDetailView({ recipe, onRecipeDeleted, onRecipeUpda
         setAiLoading(prev => ({ ...prev, [field]: true }));
         try {
             const result = await action(payload);
-            handleDataChange(field, result);
-            notify.success(`AI berhasil memperbarui ${field}.`);
+            if (field === 'name') {
+                setNameSuggestions(Array.isArray(result) ? result : []);
+                setIsSuggestionPopoverOpen(true);
+            } else {
+                handleDataChange(field, result);
+                notify.success(`AI berhasil memperbarui ${field}.`);
+            }
         } catch (err) {
             notify.error(`Aksi AI gagal: ${err.message}`);
         } finally {
@@ -237,11 +247,14 @@ export default function RecipeDetailView({ recipe, onRecipeDeleted, onRecipeUpda
 
     return (
         <div className="p-6 lg:p-8 space-y-8 overflow-y-auto h-full">
-            <RecipeHeader
+            <RecipeHeader 
                 details={editableRecipe}
                 isDifferent={isDirty}
                 isSaving={isSaving}
                 aiLoading={aiLoading}
+                nameSuggestions={nameSuggestions}
+                isSuggestionPopoverOpen={isSuggestionPopoverOpen}
+                setIsSuggestionPopoverOpen={setIsSuggestionPopoverOpen}
                 handleDetailChange={handleDataChange}
                 handleSaveDetails={handleSave}
                 handleSuggestNames={() => handleAiAction(api.suggestRecipeNames, 'name', editableRecipe.ingredients)}
@@ -250,32 +263,33 @@ export default function RecipeDetailView({ recipe, onRecipeDeleted, onRecipeUpda
                 handleExportPDF={handleExportPDF}
             />
 
-            {calculationErrors.length > 0 && (
-                <Alert variant="destructive">
-                    <AlertCircle className="h-4 w-4" />
-                    <AlertTitle>Peringatan Akurasi Kalkulasi</AlertTitle>
-                    <AlertDescription>
-                        <ul className="list-disc pl-5">{calculationErrors.map((error, index) => (<li key={index}>{error}</li>))}</ul>
-                    </AlertDescription>
-                </Alert>
-            )}
-
-            <RecipeAnalysis recipeTotals={recipeTotals} servings={servings} ingredients={editableRecipe.ingredients} />
+            {calculationErrors.length > 0 && <Alert variant="destructive"><AlertCircle className="h-4 w-4" /><AlertTitle>Peringatan Akurasi Kalkulasi</AlertTitle><AlertDescription><ul className="list-disc pl-5">{calculationErrors.map((error, index) => (<li key={index}>{error}</li>))}</ul></AlertDescription></Alert>}
+            
+            <RecipeAnalysis 
+                recipeId={editableRecipe.id} 
+                recipeTotals={recipeTotals} 
+                servings={editableRecipe.servings || 1} 
+                ingredients={editableRecipe.ingredients}
+                operationalCost={editableRecipe.cost_operational_recipe}
+                laborCost={editableRecipe.cost_labor_recipe}
+                margin={editableRecipe.margin_percent}
+                onCostChange={handleDataChange}
+            />
             
             <div>
                 <Label htmlFor="servings" className="text-lg font-semibold">Resep ini untuk berapa porsi?</Label>
-                <Input id="servings" type="number" min="1" value={servings} onChange={(e) => setServings(Number(e.target.value))} className="mt-2 w-24" />
+                <Input 
+                    id="servings" 
+                    type="number" 
+                    min="1" 
+                    value={editableRecipe.servings || 1} 
+                    onChange={(e) => handleDataChange('servings', e.target.value)} 
+                    className="mt-2 w-24" 
+                />
             </div>
             
             <div>
-                <div className="flex items-center gap-2 mb-2">
-                    <Label htmlFor="recipe-desc" className="text-lg font-semibold">Deskripsi</Label>
-                    <AiButton 
-                        onClick={() => handleAiAction(api.generateDescription, 'description', { recipeName: editableRecipe.name, ingredients: editableRecipe.ingredients })} 
-                        isLoading={aiLoading.description} 
-                        tooltipContent={editableRecipe.description ? "Sempurnakan deskripsi" : "Buat draf deskripsi"} 
-                    />
-                </div>
+                <div className="flex items-center gap-2 mb-2"><Label htmlFor="recipe-desc" className="text-lg font-semibold">Deskripsi</Label><AiButton onClick={() => handleAiAction(api.generateDescription, 'description', { recipeName: editableRecipe.name, ingredients: editableRecipe.ingredients })} isLoading={aiLoading.description} tooltipContent={editableRecipe.description ? "Sempurnakan deskripsi" : "Buat draf deskripsi"} /></div>
                 <Textarea id="recipe-desc" value={editableRecipe.description || ''} onChange={e => handleDataChange('description', e.target.value)} placeholder="Deskripsi singkat tentang resep ini..." />
             </div>
             
@@ -283,62 +297,28 @@ export default function RecipeDetailView({ recipe, onRecipeDeleted, onRecipeUpda
                 <CardHeader>
                     <div className="flex justify-between items-center">
                         <CardTitle className="text-lg">Bahan-bahan</CardTitle>
-                        <div className="flex items-center gap-2">
-                            <Button variant="outline" size="sm" onClick={handleAiIngredientSuggestion} disabled={isSuggestingAndProcessing}>
-                                {isSuggestingAndProcessing ? 
-                                    <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : 
-                                    <Sparkles className="mr-2 h-4 w-4" />
-                                }
-                                Sarankan Bahan
-                            </Button>
-                            <AddIngredientDialog recipeId={recipe.id} onIngredientAdded={fetchAndSetRecipeData} />
-                        </div>
+                        <AddIngredientDialog recipeId={editableRecipe.id} onIngredientAdded={fetchAndSetRecipeData} />
                     </div>
                 </CardHeader>
                 <CardContent>
-                    <RecipeIngredientsTable
-                        ingredients={editableRecipe.ingredients}
-                        setIngredients={handleIngredientsChange}
-                        handleOnDragEnd={handleOnDragEnd}
-                        deleteIngredient={deleteIngredient}
-                        handleUpdateIngredient={handleUpdateIngredient}
-                        handleEditIngredientFood={handleEditIngredientFood}
-                        handleBulkDeleteIngredients={handleBulkDeleteIngredients}
+                    <RecipeIngredientsTable 
+                        ingredients={editableRecipe.ingredients || []}
+                        setIngredients={handleIngredientsChange} 
+                        handleOnDragEnd={handleOnDragEnd} 
+                        deleteIngredient={deleteIngredient} 
+                        handleUpdateIngredient={handleUpdateIngredient} 
+                        handleEditIngredientFood={handleEditIngredientFood} 
+                        handleBulkDeleteIngredients={handleBulkDeleteIngredients} 
                     />
                 </CardContent>
             </Card>
 
             <div>
-                <div className="flex items-center gap-2 mb-4">
-                    <h2 className="text-lg font-semibold">Instruksi</h2>
-                    <AiButton 
-                        onClick={() => handleAiAction(api.generateInstructions, 'instructions', { recipeName: editableRecipe.name, ingredients: editableRecipe.ingredients })} 
-                        isLoading={aiLoading.instructions} 
-                        tooltipContent="Buat draf instruksi dengan AI" 
-                    />
-                </div>
-                <InstructionsEditor
-                    initialValue={editableRecipe.instructions || ''}
-                    onChange={(newInstructions) => {
-                        handleDataChange('instructions', newInstructions);
-                    }}
-                />
+                <div className="flex items-center gap-2 mb-4"><h2 className="text-lg font-semibold">Instruksi</h2><AiButton onClick={() => handleAiAction(api.generateInstructions, 'instructions', { recipeName: editableRecipe.name, ingredients: editableRecipe.ingredients })} isLoading={aiLoading.instructions} tooltipContent="Buat draf instruksi dengan AI" /></div>
+                <InstructionsEditor initialValue={editableRecipe.instructions || ''} onChange={(newInstructions) => handleDataChange('instructions', newInstructions)} />
             </div>
             
-            <AlertDialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
-                <AlertDialogContent>
-                    <AlertDialogHeader>
-                        <AlertDialogTitle>Anda yakin ingin menghapus resep ini?</AlertDialogTitle>
-                        <AlertDialogDescription>Resep "{editableRecipe.name}" akan dihapus secara permanen. Aksi ini tidak dapat dibatalkan.</AlertDialogDescription>
-                    </AlertDialogHeader>
-                    <AlertDialogFooter>
-                        <AlertDialogCancel>Batal</AlertDialogCancel>
-                        <AlertDialogAction asChild>
-                            <Button variant="destructive" onClick={handleDeleteRecipe}>Hapus</Button>
-                        </AlertDialogAction>
-                    </AlertDialogFooter>
-                </AlertDialogContent>
-            </AlertDialog>
+            <AlertDialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}><AlertDialogContent><AlertDialogHeader><AlertDialogTitle>Anda yakin ingin menghapus resep ini?</AlertDialogTitle><AlertDialogDescription>Resep "{editableRecipe.name}" akan dihapus secara permanen. Aksi ini tidak dapat dibatalkan.</AlertDialogDescription></AlertDialogHeader><AlertDialogFooter><AlertDialogCancel>Batal</AlertDialogCancel><AlertDialogAction asChild><Button variant="destructive" onClick={handleDeleteRecipe}>Hapus</Button></AlertDialogAction></AlertDialogFooter></AlertDialogContent></AlertDialog>
         </div>
     );
 }

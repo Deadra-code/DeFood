@@ -4,63 +4,48 @@
 
 ## **Fitur Utama**
 
-Aplikasi ini dikemas dengan fitur-fitur canggih untuk menyederhanakan alur kerja Anda, dari dapur pribadi hingga perencanaan bisnis.
+Aplikasi ini dikemas dengan fitur-fitur canggih yang didukung oleh AI untuk menyederhanakan alur kerja Anda, dari dapur pribadi hingga perencanaan bisnis.
 
-#### **Manajemen Resep \& Bahan**
+#### **Manajemen Resep \& Bahan Berbasis AI**
 
-* **Database Bahan Lengkap:** Kelola pustaka bahan makanan Anda sendiri, lengkap dengan informasi nutrisi (kalori, protein, karbohidrat, lemak), harga, dan kategori.
-* **Antarmuka Canggih:** Tampilan database bahan yang fleksibel (mode kartu \& tabel), dilengkapi dengan fitur pencarian, filter, dan berbagai opsi pengurutan (nama, harga, paling sering digunakan).
-* **Manajemen Resep Interaktif:** Buat dan kelola resep dengan antarmuka dua panel yang efisien. Atur urutan bahan dengan mudah menggunakan *drag-and-drop* dan edit jumlahnya secara *inline*.
-* **Penambahan Bahan Massal:** Tambahkan beberapa bahan sekaligus ke dalam resep menggunakan antarmuka *checklist* dua panel yang intuitif.
+* **Database Bahan Cerdas:** Kelola pustaka bahan makanan Anda sendiri, lengkap dengan informasi nutrisi, harga, kategori, dan **konversi satuan otomatis** (misalnya, 'siung' ke gram).
+* **Asisten AI untuk Entri Data:** Secara otomatis mengisi data nutrisi, estimasi harga, kategori, dan konversi satuan untuk bahan baru hanya dengan mengetikkan namanya.
+* **Pengelolaan Bahan Terpusat:** Tambahkan bahan ke resep melalui dialog "Kelola Bahan" yang intuitif, yang mendukung pemilihan dari database maupun impor dari teks biasa.
+* **AI Drafting:** Biarkan AI membuat draf awal untuk **nama resep, deskripsi, dan instruksi memasak** berdasarkan daftar bahan Anda.
+* **Antarmuka Canggih:** Tampilan database bahan yang fleksibel (mode kartu \& tabel), dilengkapi dengan fitur pencarian, filter, dan berbagai opsi pengurutan.
+* **Manajemen Resep Interaktif:** Atur urutan bahan dengan mudah menggunakan *drag-and-drop*, edit jumlahnya secara *inline*, dan pilih satuan yang sesuai.
 
-#### **Analisis Nutrisi \& Biaya**
+#### **Analisis Nutrisi \& Biaya Real-time**
 
-* **Kalkulator Nutrisi Otomatis:** Setiap resep secara otomatis menghitung total kalori dan makronutrien (protein, karbohidrat, lemak) per porsi, yang diperbarui secara *real-time* saat Anda menyesuaikan jumlah porsi.
-* **Analisis Biaya \& Kalkulator Harga Jual:**
+* **Kalkulator Nutrisi Otomatis:** Setiap resep secara otomatis menghitung total kalori dan makronutrien (protein, karbohidrat, lemak, serat) per porsi, yang diperbarui secara *real-time*.
+* **Analisis Biaya Mendalam:**
 
-  * **Rincian Biaya Modal:** Hitung **Harga Pokok Produksi (HPP)** per porsi secara akurat, dengan kemampuan untuk menambahkan biaya operasional dan tenaga kerja.
-  * **Kalkulator Harga Jual Interaktif:** Tentukan harga jual yang profitabel dengan menyesuaikan **persentase margin keuntungan** menggunakan *slider* interaktif.
-  * **Simulasi Profit:** Proyeksikan potensi keuntungan dengan cepat berdasarkan target penjualan per porsi.
+  * Hitung **Harga Pokok Produksi (HPP)** per porsi secara akurat.
+  * Sertakan **biaya operasional dan tenaga kerja** yang dapat diatur dari halaman Pengaturan.
+  * Tentukan harga jual yang profitabel dengan menyesuaikan **persentase margin keuntungan** menggunakan *slider* interaktif.
 
-* **Visualisasi Data:** Pahami komposisi makronutrien dan struktur biaya resep Anda melalui grafik dan diagram yang mudah dibaca.
+* **Visualisasi Data:** Pahami komposisi makronutrien resep Anda melalui grafik batang yang jelas dan informatif.
 
 #### **Peningkatan Alur Kerja \& Efisiensi**
 
-* **Duplikasi Resep:** Buat salinan resep yang sudah ada dengan satu klik untuk bereksperimen dengan variasi baru tanpa harus memulai dari nol.
-* **Peringatan Cerdas:** Aplikasi akan memberikan peringatan jika Anda mencoba beralih halaman atau resep tanpa menyimpan perubahan terakhir Anda, mencegah kehilangan data yang tidak disengaja.
+* **Duplikasi Resep:** Buat salinan resep yang sudah ada dengan satu klik untuk bereksperimen dengan variasi baru.
+* **Peringatan Cerdas:** Aplikasi akan memberikan peringatan jika Anda mencoba beralih halaman atau resep tanpa menyimpan perubahan terakhir, mencegah kehilangan data.
 * **Ekspor ke PDF:** Bagikan atau cetak resep Anda dengan mudah melalui fitur ekspor ke PDF yang profesional.
+* **Pembaruan Otomatis:** Aplikasi dapat memeriksa pembaruan secara otomatis dan memberi tahu Anda jika ada versi baru yang tersedia.
 
 #### **Pengalaman Pengguna Modern**
 
-* **UI yang Sleek \& Modern:** Antarmuka yang bersih dan intuitif dibangun dengan komponen modern.
+* **UI Kustom \& Modern:** Antarmuka tanpa bingkai (*frameless*) dengan *title bar* yang dapat di-*drag* dan kontrol jendela kustom.
 * **Tema Terang \& Gelap:** Sesuaikan tampilan aplikasi dengan preferensi Anda.
 * **Animasi Halus:** Nikmati pengalaman pengguna yang responsif dengan transisi dan animasi yang elegan di seluruh aplikasi.
-
-## **Peta Jalan Fitur (Rencana Pengembangan)**
-
-DeFood terus berkembang. Berikut adalah beberapa fitur besar yang direncanakan untuk masa depan, sesuai dengan visi untuk menjadi asisten kuliner yang lengkap:
-
-* **Fase 1: Buku Resep Cerdas**
-
-  * **Konteks Nutrisi Personal:** Menetapkan target kalori harian dan melihat bagaimana setiap resep berkontribusi pada target tersebut.
-
-* **Fase 2: Dapur Efisien**
-
-  * **Komponen Resep (Sub-Recipes):** Membuat resep dasar (seperti saus atau bumbu) yang dapat digunakan kembali di dalam resep lain.
-  * **Manajemen Inventaris:** Melacak stok bahan yang Anda miliki.
-
-* **Fase 3: Perencana Strategis**
-
-  * **Perencana Menu Mingguan:** Merencanakan menu untuk seminggu penuh menggunakan resep yang ada.
-  * **Daftar Belanja Cerdas \& Otomatis:** Membuat daftar belanja secara otomatis berdasarkan rencana menu dan stok inventaris.
 
 ## **Tumpukan Teknologi**
 
 * **Framework:** Electron \& React
 * **Database:** SQLite 3
+* **AI:** Google AI (Gemini)
 * **Styling:** Tailwind CSS \& shadcn/ui
 * **Manajemen State:** React Context
-* **Animasi:** tailwindcss-animate
 * **Drag \& Drop:** @hello-pangea/dnd
 * **Pelaporan:** jsPDF \& jspdf-autotable
 
@@ -70,8 +55,8 @@ Untuk menjalankan proyek ini di lingkungan pengembangan, ikuti langkah-langkah b
 
 1. **Prasyarat:** Pastikan Anda telah menginstal [Node.js](https://nodejs.org/) (termasuk npm).
 2. **Clone Repositori:**  
-   git clone https://www.andarepository.com/  
-   cd defood-refactored
+   git clone https://github.com/Deadra-code/DeFood.git  
+   cd DeFood
 3. **Instal Dependensi:**  
    npm install
 4. Jalankan dalam Mode Pengembangan:  
@@ -84,7 +69,7 @@ Untuk membuat file *installer* yang dapat didistribusikan (misalnya .exe untuk W
 
 npm run build
 
-Hasil *build* akan tersedia di dalam direktori dist atau release.
+Hasil *build* akan tersedia di dalam direktori dist.
 
 
 

@@ -1,7 +1,9 @@
 // Lokasi file: src/components/FoodDialogManager.jsx
-// Deskripsi: Memperbaiki kesalahan sintaks pada impor React.
+// Deskripsi: Menerapkan penanganan error yang lebih baik. Sekarang, jika pengguna
+//            mencoba menyimpan nama bahan yang sudah ada, notifikasi yang
+//            ditampilkan akan lebih spesifik dan ramah pengguna.
 
-import React, { useState } from 'react'; // PERBAIKAN: Sintaks impor yang benar
+import React, { useState } from 'react';
 import { Dialog, DialogContent } from './ui/dialog';
 import { useNotifier } from '../hooks/useNotifier';
 import { useFoodContext } from '../context/FoodContext';
@@ -39,6 +41,8 @@ export default function FoodDialogManager() {
             console.error('Save food error:', dbError);
             const errorMessage =
                 dbError.message || 'Terjadi kesalahan tidak diketahui.';
+            
+            // --- PERBAIKAN: Penanganan error spesifik untuk UNIQUE constraint ---
             if (errorMessage.toLowerCase().includes('unique constraint')) {
                 notify.error(`Gagal: Nama bahan "${data.name}" sudah ada.`);
             } else {

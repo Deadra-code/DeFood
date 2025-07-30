@@ -1,5 +1,6 @@
 // Lokasi file: src/utils/nutritionCalculator.js
-// Deskripsi: Tidak ada perubahan kode. File ini sekarang akan berfungsi karena data konversi sudah disediakan oleh backend.
+// Deskripsi: (DIPERBARUI) Menambahkan pemeriksaan `Array.isArray` untuk memastikan
+//            fungsi hanya berjalan jika inputnya adalah array, mencegah error.
 
 /**
  * Mengkonversi jumlah bahan ke gram. Melempar error jika konversi tidak ditemukan.
@@ -19,8 +20,6 @@ function convertToGrams(food, quantity, unit) {
     }
 
     try {
-        // Logika ini sudah benar. Sekarang `food.unit_conversions` akan berisi
-        // string JSON seperti '{"siung": 5}' yang akan berhasil di-parse.
         const conversions = JSON.parse(food.unit_conversions || '{}');
         const conversionRate = conversions[unit];
 
@@ -42,7 +41,8 @@ function convertToGrams(food, quantity, unit) {
  */
 export function validateIngredientsForCalculation(ingredients = []) {
     const errors = [];
-    if (!ingredients || ingredients.length === 0) {
+    // PERBAIKAN: Pemeriksaan yang lebih kuat untuk memastikan input adalah array.
+    if (!Array.isArray(ingredients) || ingredients.length === 0) {
         return errors;
     }
 
@@ -70,7 +70,8 @@ export function validateIngredientsForCalculation(ingredients = []) {
 export function calculateRecipeTotals(ingredients = []) {
     const totals = { calories: 0, protein: 0, fat: 0, carbs: 0, fiber: 0, price: 0 };
 
-    if (!ingredients || ingredients.length === 0) {
+    // PERBAIKAN: Pemeriksaan yang lebih kuat untuk memastikan input adalah array.
+    if (!Array.isArray(ingredients) || ingredients.length === 0) {
         return totals;
     }
 

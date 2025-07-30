@@ -1,14 +1,16 @@
 // Lokasi file: src/features/Recipes/components/AddIngredientDialog.jsx
-// Deskripsi: Diperbarui dengan auto-focus dan payload yang benar.
+// Deskripsi: (DIPERBARUI) Tombol "Buat Bahan Baru" sekarang selalu terlihat
+//            di bagian bawah panel pencarian untuk akses yang lebih mudah.
 
 import React, { useState, useEffect, useMemo } from 'react';
 import { Button } from '../../../components/ui/button';
 import { Dialog, DialogContent, DialogHeader, DialogFooter, DialogTitle, DialogDescription, DialogTrigger } from '../../../components/ui/dialog';
 import { Input } from '../../../components/ui/input';
 import { Label } from '../../../components/ui/label';
-import { PlusCircle, ArrowRight, Check, Search, X } from 'lucide-react';
+import { PlusCircle, ArrowRight, Check, Search, X, Plus } from 'lucide-react';
 import { useNotifier } from '../../../hooks/useNotifier';
 import { useFoodContext } from '../../../context/FoodContext';
+import { useUIStateContext } from '../../../context/UIStateContext';
 import * as api from '../../../api/electronAPI';
 import { ScrollArea } from '../../../components/ui/scroll-area';
 import { Checkbox } from '../../../components/ui/checkbox';
@@ -18,10 +20,10 @@ const AddIngredientDialog = ({ recipeId, onIngredientAdded }) => {
     const [step, setStep] = useState(1);
     const [searchTerm, setSearchTerm] = useState('');
     const [selectedFoods, setSelectedFoods] = useState({});
-    // State sekarang menyimpan objek lengkap { quantity: '', unit: 'g' }
     const [quantities, setQuantities] = useState({});
 
     const { foods } = useFoodContext();
+    const { setFoodToEdit } = useUIStateContext();
     const { notify } = useNotifier();
 
     const filteredFoods = useMemo(() => {
@@ -39,7 +41,6 @@ const AddIngredientDialog = ({ recipeId, onIngredientAdded }) => {
                 delete newSelection[foodId];
             } else {
                 newSelection[foodId] = true;
-                // Inisialisasi kuantitas saat dipilih
                 setQuantities(prevQty => ({ ...prevQty, [foodId]: { quantity: '', unit: 'g' } }));
             }
             return newSelection;
@@ -84,6 +85,11 @@ const AddIngredientDialog = ({ recipeId, onIngredientAdded }) => {
         }
     };
 
+    const handleCreateNewFood = () => {
+        const initialData = searchTerm ? { name: searchTerm, isNew: true } : { isNew: true };
+        setFoodToEdit(initialData);
+    };
+
     useEffect(() => {
         if (!isOpen) {
             setTimeout(() => {
@@ -112,41 +118,44 @@ const AddIngredientDialog = ({ recipeId, onIngredientAdded }) => {
                             </DialogDescription>
                         </DialogHeader>
                         <div className="grid grid-cols-2 gap-6 py-4">
-                            <div className="flex flex-col gap-4">
-                                <div className="relative">
-                                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                                    {/* --- PERBAIKAN (UX #1): Menambahkan autoFocus --- */}
+                            <div className="flex flex-col gap-4 border rounded-lg">
+                                <div className="relative p-4 border-b">
+                                    <Search className="absolute left-7 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                                     <Input placeholder="Cari bahan..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} className="pl-9" autoFocus />
                                 </div>
-                                <ScrollArea className="h-72 border rounded-md">
-                                    <div className="p-2">
-                                        {filteredFoods.length > 0 ? filteredFoods.map((food) => (
-                                            <div 
-                                                key={food.id} 
-                                                className="flex items-center space-x-3 p-2 rounded-md transition-colors cursor-pointer hover:bg-accent"
-                                                onClick={() => handleToggleFood(food.id)}
-                                            >
-                                                <Checkbox
-                                                    id={`food-search-${food.id}`}
-                                                    checked={!!selectedFoods[food.id]}
-                                                    onCheckedChange={() => handleToggleFood(food.id)}
-                                                />
-                                                <div className="flex-1">
-                                                    <label htmlFor={`food-search-${food.id}`} className="font-medium leading-none cursor-pointer">{food.name}</label>
-                                                    <div className="text-xs text-muted-foreground mt-1">{food.calories_kcal} kkal / 100g</div>
-                                                </div>
+                                <ScrollArea className="h-64 px-4">
+                                    {filteredFoods.length > 0 ? filteredFoods.map((food) => (
+                                        <div 
+                                            key={food.id} 
+                                            className="flex items-center space-x-3 p-2 rounded-md transition-colors cursor-pointer hover:bg-accent"
+                                            onClick={() => handleToggleFood(food.id)}
+                                        >
+                                            <Checkbox
+                                                id={`food-search-${food.id}`}
+                                                checked={!!selectedFoods[food.id]}
+                                                onCheckedChange={() => handleToggleFood(food.id)}
+                                            />
+                                            <div className="flex-1">
+                                                <label htmlFor={`food-search-${food.id}`} className="font-medium leading-none cursor-pointer">{food.name}</label>
+                                                <div className="text-xs text-muted-foreground mt-1">{food.calories_kcal} kkal / 100g</div>
                                             </div>
-                                        )) : (
-                                            <div className="text-center text-sm text-muted-foreground py-16">
-                                                <p>Tidak ada bahan yang cocok.</p>
-                                            </div>
-                                        )}
-                                    </div>
+                                        </div>
+                                    )) : (
+                                        <div className="text-center text-sm text-muted-foreground py-10">
+                                            <p>Bahan tidak ditemukan.</p>
+                                        </div>
+                                    )}
                                 </ScrollArea>
+                                {/* --- PERBAIKAN: Tombol dipindahkan ke footer panel --- */}
+                                <div className="p-4 border-t">
+                                    <Button variant="outline" className="w-full" onClick={handleCreateNewFood}>
+                                        <Plus className="mr-2 h-4 w-4" /> Buat Bahan Baru
+                                    </Button>
+                                </div>
                             </div>
                             <div className="flex flex-col gap-4">
                                 <h4 className="font-medium text-lg">Bahan Dipilih ({selectedCount})</h4>
-                                <ScrollArea className="h-72 border rounded-md bg-muted/30">
+                                <ScrollArea className="h-80 border rounded-md bg-muted/30">
                                     <div className="p-2">
                                         {selectedCount > 0 ? foodsToQuantify.map(food => (
                                             <div key={`selected-${food.id}`} className="flex items-center justify-between p-2 rounded-md hover:bg-background">

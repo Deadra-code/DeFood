@@ -1,18 +1,23 @@
 // Lokasi file: src/features/Recipes/components/RecipeDetail/RecipeHeader.jsx
-// Deskripsi: Komponen untuk header halaman detail resep.
+// Deskripsi: (DIPERBARUI) Tombol AI sekarang terintegrasi dengan Popover untuk
+//            menampilkan daftar saran nama, memperbaiki bug fungsional.
 
 import React, { useState } from 'react';
 import { Button } from '../../../../components/ui/button';
 import { Input } from '../../../../components/ui/input';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuSeparator } from '../../../../components/ui/dropdown-menu';
-import { Save, MoreVertical, Loader2, Download, Copy, Trash2 } from 'lucide-react';
-import { AiButton } from './AiButton'; // Kita akan buat AiButton sebagai komponen terpisah
+import { Popover, PopoverContent, PopoverTrigger } from '../../../../components/ui/popover'; // BARU: Impor Popover
+import { Save, MoreVertical, Loader2, Download, Copy, Trash2, Pencil } from 'lucide-react';
+import { AiButton } from './AiButton';
 
 export const RecipeHeader = ({
     details,
     isDifferent,
     isSaving,
     aiLoading,
+    nameSuggestions, // BARU: Menerima daftar saran
+    isSuggestionPopoverOpen, // BARU: State untuk popover
+    setIsSuggestionPopoverOpen, // BARU: Fungsi untuk mengubah state popover
     handleDetailChange,
     handleSaveDetails,
     handleSuggestNames,
@@ -24,7 +29,7 @@ export const RecipeHeader = ({
 
     return (
         <header className="flex justify-between items-start gap-4">
-            <div className="flex-1 flex items-center gap-2">
+            <div className="flex-1 flex items-center gap-2 group">
                 {isEditingTitle ? (
                     <Input
                         value={details.name}
@@ -35,11 +40,48 @@ export const RecipeHeader = ({
                         onKeyDown={(e) => { if (e.key === 'Enter') setIsEditingTitle(false); }}
                     />
                 ) : (
-                    <h1 className="text-4xl font-bold tracking-tight cursor-pointer hover:bg-muted rounded-md px-1 -mx-1" onClick={() => setIsEditingTitle(true)}>
-                        {details.name} {isDifferent && <span className="text-destructive">*</span>}
-                    </h1>
+                    <div className="flex items-center gap-3 cursor-pointer" onClick={() => setIsEditingTitle(true)}>
+                        <h1 className="text-4xl font-bold tracking-tight group-hover:bg-muted rounded-md px-1 -mx-1">
+                            {details.name} {isDifferent && <span className="text-destructive">*</span>}
+                        </h1>
+                        <Pencil className="h-6 w-6 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity" />
+                    </div>
                 )}
-                <AiButton onClick={handleSuggestNames} isLoading={aiLoading.title} tooltipContent="Sarankan nama resep" />
+                {/* --- PERBAIKAN: Tombol AI sekarang membuka Popover --- */}
+                <Popover open={isSuggestionPopoverOpen} onOpenChange={setIsSuggestionPopoverOpen}>
+                    <PopoverTrigger asChild>
+                        <div>
+                           <AiButton onClick={handleSuggestNames} isLoading={aiLoading.title} tooltipContent="Sarankan nama resep" />
+                        </div>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-80">
+                        <div className="space-y-2">
+                            <h4 className="font-medium leading-none">Saran Nama Resep</h4>
+                            <p className="text-sm text-muted-foreground">
+                                Klik nama untuk menerapkannya.
+                            </p>
+                        </div>
+                        <div className="mt-4 flex flex-col gap-2">
+                            {nameSuggestions.length > 0 ? (
+                                nameSuggestions.map((name, index) => (
+                                    <Button
+                                        key={index}
+                                        variant="ghost"
+                                        className="justify-start"
+                                        onClick={() => {
+                                            handleDetailChange('name', name);
+                                            setIsSuggestionPopoverOpen(false);
+                                        }}
+                                    >
+                                        {name}
+                                    </Button>
+                                ))
+                            ) : (
+                                <p className="text-sm text-muted-foreground text-center">Tidak ada saran ditemukan.</p>
+                            )}
+                        </div>
+                    </PopoverContent>
+                </Popover>
             </div>
             <div className="flex items-center gap-2">
                 <Button variant="outline" onClick={handleExportPDF}><Download className="mr-2 h-4 w-4" /> Ekspor</Button>

@@ -1,34 +1,23 @@
 // Lokasi file: src/components/ui/UndoToast.jsx
-// Deskripsi: (BARU) Komponen notifikasi kustom untuk fitur "Undo".
+// Deskripsi: Menghapus impor 'X' yang tidak terpakai untuk membersihkan peringatan.
 
 import React from 'react';
 import { toast } from 'react-hot-toast';
-import { Undo2, X } from 'lucide-react';
 import { Button } from './button';
+// PERBAIKAN: Menghapus impor 'X' yang tidak digunakan
+// import { X } from 'lucide-react';
 
-/**
- * Komponen Toast untuk menampilkan pesan dengan opsi Undo.
- * @param {object} props
- * @param {object} props.t - Objek toast dari react-hot-toast.
- * @param {string} props.message - Pesan yang akan ditampilkan.
- * @param {function} props.onUndo - Callback yang dijalankan saat tombol Undo diklik.
- */
-const UndoToast = ({ t, message, onUndo }) => {
-    const handleUndo = () => {
-        onUndo();
-        toast.dismiss(t.id);
-    };
-
+export default function UndoToast({ t, message, onUndo }) {
     return (
         <div
             className={`${
-                t.visible ? 'animate-enter' : 'animate-leave'
+                t.visible ? 'animate-fade-in-up' : 'animate-out fade-out'
             } max-w-md w-full bg-card shadow-lg rounded-lg pointer-events-auto flex ring-1 ring-border`}
         >
             <div className="flex-1 w-0 p-4">
                 <div className="flex items-start">
                     <div className="ml-3 flex-1">
-                        <p className="text-sm font-medium text-foreground">
+                        <p className="text-sm font-medium text-card-foreground">
                             {message}
                         </p>
                     </div>
@@ -36,16 +25,16 @@ const UndoToast = ({ t, message, onUndo }) => {
             </div>
             <div className="flex border-l border-border">
                 <Button
-                    onClick={handleUndo}
                     variant="ghost"
-                    className="w-full border border-transparent rounded-none rounded-r-lg p-4 flex items-center justify-center text-sm font-medium text-primary hover:text-primary focus:outline-none focus:ring-2 focus:ring-primary"
+                    onClick={() => {
+                        onUndo();
+                        toast.dismiss(t.id);
+                    }}
+                    className="w-full border border-transparent rounded-none rounded-r-lg p-4 flex items-center justify-center text-sm font-medium text-primary hover:text-primary focus:outline-none focus:ring-2 focus:ring-ring"
                 >
-                    <Undo2 className="h-5 w-5 mr-2" />
-                    Urungkan
+                    Undo
                 </Button>
             </div>
         </div>
     );
-};
-
-export default UndoToast;
+}
