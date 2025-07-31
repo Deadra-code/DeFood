@@ -53,15 +53,15 @@
     "wait-on": "^7.2.0"
   },
   "scripts": {
-    "postinstall": "electron-rebuild -f -w sqlite3",
-    "start": "react-scripts start",
-    "build": "react-scripts build && copyfiles -u 1 src/electron/**/* build/electron",
-    "test": "react-scripts test",
-    "eject": "react-scripts eject",
-    "react-start": "cross-env BROWSER=none react-scripts start",
-    "electron-start": "electron .",
-    "electron:dev": "concurrently -k \"npm:react-start\" \"wait-on http://localhost:3000 && electron .\""
-  },
+  "postinstall": "electron-rebuild -f -w sqlite3",
+  "start": "react-scripts start",
+  "build": "react-scripts build && copyfiles -u 1 src/electron/**/* build/electron && electron-builder",
+  "test": "react-scripts test",
+  "eject": "react-scripts eject",
+  "react-start": "cross-env BROWSER=none react-scripts start",
+  "electron-start": "electron .",
+  "electron:dev": "concurrently -k \"npm:react-start\" \"wait-on http://localhost:3000 && electron .\""
+},
   "build": {
     "appId": "com.defood.app",
     "productName": "DeFood",

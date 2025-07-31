@@ -1,5 +1,6 @@
 // Lokasi file: src/electron/main.js
-// Deskripsi: Menambahkan perintah untuk memaksimalkan jendela saat aplikasi dimulai.
+// Deskripsi: (DIPERBARUI) Memperbaiki cara mendapatkan path file log
+//            sesuai dengan API terbaru dari electron-log v5.
 
 const { app, dialog, BrowserWindow, ipcMain, Menu, shell } = require('electron');
 const path = require('path');
@@ -53,7 +54,6 @@ function createWindow() {
     mainWindow.loadURL(startUrl);
 
     mainWindow.once('ready-to-show', () => {
-        // --- PERUBAHAN: Memaksimalkan jendela sebelum menampilkannya ---
         mainWindow.maximize();
         mainWindow.show();
         if (!isDev) {
@@ -85,10 +85,14 @@ app.whenReady().then(async () => {
         });
         ipcMain.on('app:close', () => mainWindow.close());
         ipcMain.handle('app:get-version', () => app.getVersion());
+
+        // --- PERBAIKAN: Menggunakan metode yang benar untuk mendapatkan path log ---
         ipcMain.handle('app:open-logs', () => {
-            const logPath = log.transports.file.resolvePath();
+            // Metode lama: const logPath = log.transports.file.resolvePath();
+            const logPath = log.transports.file.getFile().path; // Metode baru yang benar
             shell.openPath(logPath);
         });
+        
         ipcMain.handle('app:check-for-updates', () => {
             autoUpdater.checkForUpdates();
         });

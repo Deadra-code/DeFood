@@ -9,8 +9,7 @@ Aplikasi ini dikemas dengan fitur-fitur canggih yang didukung oleh AI untuk meny
 #### **Manajemen Resep \& Bahan Berbasis AI**
 
 * **Database Bahan Cerdas:** Kelola pustaka bahan makanan Anda sendiri, lengkap dengan informasi nutrisi, harga, kategori, dan **konversi satuan otomatis** (misalnya, 'siung' ke gram).
-* **Asisten AI untuk Entri Data:** Secara otomatis mengisi data nutrisi, estimasi harga, kategori, dan konversi satuan untuk bahan baru hanya dengan mengetikkan namanya.
-* **Pengelolaan Bahan Terpusat:** Tambahkan bahan ke resep melalui dialog "Kelola Bahan" yang intuitif, yang mendukung pemilihan dari database maupun impor dari teks biasa.
+* **Asisten AI untuk Entri Data:** Secara otomatis mengisi data nutrisi, estimasi harga, dan kategori untuk bahan baru hanya dengan mengetikkan namanya.
 * **AI Drafting:** Biarkan AI membuat draf awal untuk **nama resep, deskripsi, dan instruksi memasak** berdasarkan daftar bahan Anda.
 * **Antarmuka Canggih:** Tampilan database bahan yang fleksibel (mode kartu \& tabel), dilengkapi dengan fitur pencarian, filter, dan berbagai opsi pengurutan.
 * **Manajemen Resep Interaktif:** Atur urutan bahan dengan mudah menggunakan *drag-and-drop*, edit jumlahnya secara *inline*, dan pilih satuan yang sesuai.
@@ -21,8 +20,8 @@ Aplikasi ini dikemas dengan fitur-fitur canggih yang didukung oleh AI untuk meny
 * **Analisis Biaya Mendalam:**
 
   * Hitung **Harga Pokok Produksi (HPP)** per porsi secara akurat.
-  * Sertakan **biaya operasional dan tenaga kerja** yang dapat diatur dari halaman Pengaturan.
-  * Tentukan harga jual yang profitabel dengan menyesuaikan **persentase margin keuntungan** menggunakan *slider* interaktif.
+  * Sertakan **biaya operasional dan tenaga kerja** yang dapat diatur secara spesifik untuk setiap resep.
+  * Tentukan harga jual yang profitabel dengan menyesuaikan **persentase margin keuntungan per resep** menggunakan *slider* interaktif.
 
 * **Visualisasi Data:** Pahami komposisi makronutrien resep Anda melalui grafik batang yang jelas dan informatif.
 
@@ -45,7 +44,7 @@ Aplikasi ini dikemas dengan fitur-fitur canggih yang didukung oleh AI untuk meny
 * **Database:** SQLite 3
 * **AI:** Google AI (Gemini)
 * **Styling:** Tailwind CSS \& shadcn/ui
-* **Manajemen State:** React Context
+* **Manajemen State:** React Context \& Custom Hooks
 * **Drag \& Drop:** @hello-pangea/dnd
 * **Pelaporan:** jsPDF \& jspdf-autotable
 

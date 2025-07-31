@@ -1,20 +1,21 @@
 // Lokasi file: src/context/FoodContext.js
-// Deskripsi: (DIPERBAIKI) Mengimpor dan memanggil useNotifier untuk mengatasi
-//            error 'notify is not defined'.
+// Deskripsi: (LENGKAP & TERBARU) Mengelola state global untuk database bahan,
+//            termasuk fungsi untuk pembaruan optimis dan fitur "Undo".
 
 import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
 import * as api from '../api/electronAPI';
 import { useAppContext } from './AppContext';
-import { useNotifier } from '../hooks/useNotifier'; // BARU: Impor useNotifier
+import { useNotifier } from '../hooks/useNotifier';
 
 const FoodContext = createContext();
 
 export const FoodProvider = ({ children }) => {
     const { apiReady } = useAppContext();
-    const { notify } = useNotifier(); // BARU: Panggil hook untuk mendapatkan fungsi notify
+    const { notify } = useNotifier();
 
     const [foods, setFoods] = useState([]);
     const [foodsLoading, setFoodsLoading] = useState(true);
+    const [updateCounter, setUpdateCounter] = useState(0);
 
     const fetchFoods = useCallback(async () => {
         if (!apiReady) return;
@@ -44,7 +45,7 @@ export const FoodProvider = ({ children }) => {
 
         try {
             const savedFood = await api.addFood(food);
-            setFoods(prevFoods => prevFoods.map(f => f.id === tempId ? savedFood : f));
+            await fetchFoods(); // Refetch untuk data yang konsisten
             return savedFood;
         } catch (err) {
             console.error("Add food error:", err);
@@ -64,6 +65,7 @@ export const FoodProvider = ({ children }) => {
 
         try {
             await api.updateFood(foodToUpdate);
+            setUpdateCounter(c => c + 1); // Memicu update di komponen lain
         } catch (err) {
             console.error("Update food error:", err);
             setFoods(originalFoods);
@@ -76,6 +78,7 @@ export const FoodProvider = ({ children }) => {
         api.deleteFood(foodId).catch(err => {
             console.error("Permanent delete food error:", err);
             notify.error(`Gagal menghapus bahan secara permanen dari database.`);
+            fetchFoods(); // Pulihkan dari database jika API call gagal
         });
     };
 
@@ -98,6 +101,7 @@ export const FoodProvider = ({ children }) => {
     const value = {
         foods,
         foodsLoading,
+        updateCounter,
         addFood,
         addFoodBulk,
         updateFood,

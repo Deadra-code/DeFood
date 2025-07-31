@@ -102,6 +102,7 @@ export default function RecipeDetailView({ recipe, onRecipeDeleted, onRecipeUpda
         if (needsSync) {
             setEditableRecipe(prevRecipe => ({ ...prevRecipe, ingredients: newIngredients }));
         }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [updateCounter, foods]); 
 
     const handleDataChange = (field, value) => {
