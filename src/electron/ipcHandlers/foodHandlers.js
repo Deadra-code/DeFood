@@ -1,5 +1,5 @@
 // Lokasi file: src/electron/ipcHandlers/foodHandlers.js
-// Deskripsi: Handler untuk semua operasi terkait bahan makanan, dengan tambahan handler untuk hapus massal.
+// Deskripsi: Melempar error yang lebih spesifik untuk pelanggaran UNIQUE constraint.
 
 const log = require('electron-log');
 const { foodSchema } = require('../schemas.cjs');
@@ -9,7 +9,7 @@ const { getAiApiUrl } = require('../aiConfig');
 
 const httpsAgent = new https.Agent({ family: 4 });
 
-// --- PERUBAHAN: Prompt AI telah diterjemahkan ke Bahasa Indonesia ---
+// ... (fungsi getGroundedFoodDataWithConversions tetap sama)
 async function getGroundedFoodDataWithConversions(apiKey, foodName) {
     log.info(`Permintaan data AI lengkap untuk: ${foodName}`);
     const url = getAiApiUrl(apiKey);
@@ -43,6 +43,7 @@ async function getGroundedFoodDataWithConversions(apiKey, foodName) {
     }
 }
 
+
 async function updateFoodInDb(db, foodData) {
     try {
         const validatedFood = foodSchema.parse(foodData);
@@ -61,6 +62,10 @@ async function updateFoodInDb(db, foodData) {
         return { success: true };
     } catch (err) {
         log.error('Gagal memperbarui bahan di DB:', err);
+        // BARU: Penanganan error spesifik
+        if (err.message.includes('UNIQUE constraint')) {
+            throw new Error(`DB_UNIQUE_CONSTRAINT: Nama bahan "${foodData.name}" sudah ada.`);
+        }
         throw err;
     }
 }
@@ -83,6 +88,10 @@ function registerFoodHandlers(ipcMain, db) {
             return { id: result.lastID, ...validatedFood };
         } catch (err) {
             log.error('Gagal menambahkan bahan:', err);
+            // BARU: Penanganan error spesifik
+            if (err.message.includes('UNIQUE constraint')) {
+                throw new Error(`DB_UNIQUE_CONSTRAINT: Nama bahan "${food.name}" sudah ada.`);
+            }
             throw err;
         }
     });
@@ -94,7 +103,7 @@ function registerFoodHandlers(ipcMain, db) {
         return { success: true };
     });
 
-    // --- BARU: Handler untuk menghapus beberapa bahan sekaligus ---
+    // ... (sisa handler tetap sama) ...
     ipcMain.handle('db:delete-foods-bulk', async (event, ids) => {
         if (!Array.isArray(ids) || ids.length === 0) {
             throw new Error("Payload tidak valid: harus berupa array ID.");

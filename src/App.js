@@ -1,28 +1,28 @@
 // Lokasi file: src/App.js
-// Deskripsi: (DIPERBARUI) Menghapus tab Pengaturan dan menggantinya dengan
-//            tombol ikon gear di header yang membuka dialog modal pengaturan.
+// Deskripsi: Menghapus state 'isDirty' lokal dan props terkait, sekarang menggunakan dari UIStateContext.
 
 import React, { useState, useEffect } from 'react';
-import { Loader2, BookOpen, Database, Moon, Sun, Settings as SettingsIcon } from 'lucide-react'; // Ganti nama import
+import { Loader2, BookOpen, Database, Moon, Sun, Settings as SettingsIcon } from 'lucide-react';
 import { useAppContext } from './context/AppContext';
 import RecipeManagerPage from './features/Recipes/RecipeManagerPage';
 import FoodDatabasePage from './features/FoodDatabase/FoodDatabasePage';
-// Hapus import SettingsPage
 import { Tabs, TabsContent, TabsList, TabsTrigger } from './components/ui/tabs';
 import ToasterProvider from './components/ui/ToasterProvider.jsx';
 import FoodDialogManager from './components/FoodDialogManager';
 import RecipeDialogManager from './features/Recipes/components/RecipeDialogManager';
 import { useRecipeContext } from './context/RecipeContext';
+import { useUIStateContext } from './context/UIStateContext'; // BARU
 import { Button } from './components/ui/button';
 import { AlertDialog, AlertDialogContent, AlertDialogHeader, AlertDialogTitle, AlertDialogDescription, AlertDialogFooter, AlertDialogCancel, AlertDialogAction } from './components/ui/alert-dialog';
 import { TooltipProvider } from './components/ui/tooltip';
 import TitleBar from './components/TitleBar';
 import AppMenu from './components/AppMenu';
-import SettingsDialog from './features/Settings/SettingsDialog'; // BARU: Impor dialog baru
+import SettingsDialog from './features/Settings/SettingsDialog';
 
 export default function App() {
     const { apiReady } = useAppContext();
     const { recipes, loading: recipesLoading, refetchRecipes } = useRecipeContext();
+    const { isDirty, setIsDirty } = useUIStateContext(); // BARU: Menggunakan state dari konteks
     const [activeRecipe, setActiveRecipe] = useState(null);
     const [theme, setTheme] = useState(localStorage.getItem('theme') || 'light');
     
@@ -30,10 +30,9 @@ export default function App() {
     
     const [activeTab, setActiveTab] = useState('recipes'); 
     const [pendingTab, setPendingTab] = useState(null);
-    const [isDirty, setIsDirty] = useState(false);
+    // HAPUS: const [isDirty, setIsDirty] = useState(false);
     const [isUnsavedAlertOpen, setIsUnsavedAlertOpen] = useState(false);
     
-    // BARU: State untuk mengontrol dialog pengaturan
     const [isSettingsDialogOpen, setIsSettingsDialogOpen] = useState(false);
 
     useEffect(() => {
@@ -100,7 +99,6 @@ export default function App() {
                             <TabsList>
                                 <TabsTrigger value="recipes"><BookOpen className="h-4 w-4 mr-2" /> Buku Resep</TabsTrigger>
                                 <TabsTrigger value="foods"><Database className="h-4 w-4 mr-2" /> Database Bahan</TabsTrigger>
-                                {/* Tab Pengaturan dihapus */}
                             </TabsList>
                         </div>
                         <div className="flex items-center gap-2">
@@ -109,7 +107,6 @@ export default function App() {
                                     <Sun className="h-4 w-4 rotate-0 scale-100 transition-all dark:-rotate-90 dark:scale-0" />
                                     <Moon className="absolute h-4 w-4 rotate-90 scale-0 transition-all dark:rotate-0 dark:scale-100" />
                                 </Button>
-                                {/* BARU: Tombol untuk membuka dialog pengaturan */}
                                 <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => setIsSettingsDialogOpen(true)} aria-label="Buka Pengaturan">
                                     <SettingsIcon className="h-4 w-4" />
                                 </Button>
@@ -121,15 +118,13 @@ export default function App() {
                     
                     <main className="flex-grow overflow-hidden">
                         <TabsContent value="recipes" className="h-full m-0 animate-fade-in">
+                            {/* HAPUS: props isDirty dan setIsDirty */}
                             <RecipeManagerPage 
                                 activeRecipe={activeRecipe}
                                 setActiveRecipe={setActiveRecipe}
-                                isDirty={isDirty}
-                                setIsDirty={setIsDirty}
                             />
                         </TabsContent>
                         <TabsContent value="foods" className="h-full m-0 animate-fade-in"><FoodDatabasePage /></TabsContent>
-                        {/* Konten Pengaturan dihapus */}
                     </main>
                 </Tabs>
             </div>

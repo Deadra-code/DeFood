@@ -1,7 +1,5 @@
 // Lokasi file: src/components/FoodDialogManager.jsx
-// Deskripsi: Menerapkan penanganan error yang lebih baik. Sekarang, jika pengguna
-//            mencoba menyimpan nama bahan yang sudah ada, notifikasi yang
-//            ditampilkan akan lebih spesifik dan ramah pengguna.
+// Deskripsi: Memperbarui logika penanganan error untuk menangani pesan error yang lebih spesifik dari backend.
 
 import React, { useState } from 'react';
 import { Dialog, DialogContent } from './ui/dialog';
@@ -43,8 +41,10 @@ export default function FoodDialogManager() {
                 dbError.message || 'Terjadi kesalahan tidak diketahui.';
             
             // --- PERBAIKAN: Penanganan error spesifik untuk UNIQUE constraint ---
-            if (errorMessage.toLowerCase().includes('unique constraint')) {
-                notify.error(`Gagal: Nama bahan "${data.name}" sudah ada.`);
+            if (errorMessage.startsWith('DB_UNIQUE_CONSTRAINT:')) {
+                // Menghapus prefix dan menampilkan pesan yang ramah pengguna
+                const cleanMessage = errorMessage.replace('DB_UNIQUE_CONSTRAINT:', '').trim();
+                notify.error(`Gagal: ${cleanMessage}`);
             } else {
                 notify.error(`Gagal menyimpan: ${errorMessage}`);
             }

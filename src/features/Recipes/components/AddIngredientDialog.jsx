@@ -1,12 +1,12 @@
 // Lokasi file: src/features/Recipes/components/AddIngredientDialog.jsx
-// Deskripsi: (DIPERBARUI) Tombol "Buat Bahan Baru" sekarang selalu terlihat
-//            di bagian bawah panel pencarian untuk akses yang lebih mudah.
+// Deskripsi: Mengubah input satuan menjadi dropdown dinamis berdasarkan data konversi bahan.
 
 import React, { useState, useEffect, useMemo } from 'react';
 import { Button } from '../../../components/ui/button';
 import { Dialog, DialogContent, DialogHeader, DialogFooter, DialogTitle, DialogDescription, DialogTrigger } from '../../../components/ui/dialog';
 import { Input } from '../../../components/ui/input';
 import { Label } from '../../../components/ui/label';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../../../components/ui/select'; // BARU
 import { PlusCircle, ArrowRight, Check, Search, X, Plus } from 'lucide-react';
 import { useNotifier } from '../../../hooks/useNotifier';
 import { useFoodContext } from '../../../context/FoodContext';
@@ -41,7 +41,8 @@ const AddIngredientDialog = ({ recipeId, onIngredientAdded }) => {
                 delete newSelection[foodId];
             } else {
                 newSelection[foodId] = true;
-                setQuantities(prevQty => ({ ...prevQty, [foodId]: { quantity: '', unit: 'g' } }));
+                // --- PENINGKATAN: Mengubah default unit menjadi 'gr' ---
+                setQuantities(prevQty => ({ ...prevQty, [foodId]: { quantity: '', unit: 'gr' } }));
             }
             return newSelection;
         });
@@ -66,7 +67,8 @@ const AddIngredientDialog = ({ recipeId, onIngredientAdded }) => {
         const ingredientsToAdd = foodsToQuantify.map(food => ({
             food_id: food.id,
             quantity: parseFloat(quantities[food.id]?.quantity || 0),
-            unit: quantities[food.id]?.unit || 'g'
+            // --- PENINGKATAN: Mengubah default unit menjadi 'gr' ---
+            unit: quantities[food.id]?.unit || 'gr'
         })).filter(ing => ing.quantity > 0);
 
         if (ingredientsToAdd.length === 0) {
@@ -137,7 +139,7 @@ const AddIngredientDialog = ({ recipeId, onIngredientAdded }) => {
                                             />
                                             <div className="flex-1">
                                                 <label htmlFor={`food-search-${food.id}`} className="font-medium leading-none cursor-pointer">{food.name}</label>
-                                                <div className="text-xs text-muted-foreground mt-1">{food.calories_kcal} kkal / 100g</div>
+                                                <div className="text-xs text-muted-foreground mt-1">{food.calories_kcal} kkal / 100gr</div>
                                             </div>
                                         </div>
                                     )) : (
@@ -146,7 +148,6 @@ const AddIngredientDialog = ({ recipeId, onIngredientAdded }) => {
                                         </div>
                                     )}
                                 </ScrollArea>
-                                {/* --- PERBAIKAN: Tombol dipindahkan ke footer panel --- */}
                                 <div className="p-4 border-t">
                                     <Button variant="outline" className="w-full" onClick={handleCreateNewFood}>
                                         <Plus className="mr-2 h-4 w-4" /> Buat Bahan Baru
@@ -192,25 +193,41 @@ const AddIngredientDialog = ({ recipeId, onIngredientAdded }) => {
                         <div className="py-4">
                             <ScrollArea className="h-72">
                                 <div className="space-y-4 p-1">
-                                    {foodsToQuantify.map(food => (
-                                        <div key={food.id} className="grid grid-cols-4 items-center gap-4">
-                                            <Label htmlFor={`quantity-${food.id}`} className="col-span-2">{food.name}</Label>
-                                            <Input
-                                                id={`quantity-${food.id}`}
-                                                type="number"
-                                                placeholder="Jumlah"
-                                                value={quantities[food.id]?.quantity || ''}
-                                                onChange={(e) => handleQuantityChange(food.id, 'quantity', e.target.value)}
-                                            />
-                                            <Input
-                                                id={`unit-${food.id}`}
-                                                type="text"
-                                                placeholder="Satuan"
-                                                value={quantities[food.id]?.unit || 'g'}
-                                                onChange={(e) => handleQuantityChange(food.id, 'unit', e.target.value)}
-                                            />
-                                        </div>
-                                    ))}
+                                    {foodsToQuantify.map(food => {
+                                        // --- PENINGKATAN: Logika untuk mendapatkan unit dari database ---
+                                        let availableUnits = ['gr']; // Default unit
+                                        try {
+                                            const conversions = JSON.parse(food.unit_conversions || '{}');
+                                            availableUnits = ['gr', ...Object.keys(conversions)];
+                                        } catch (e) { /* Biarkan default jika parsing gagal */ }
+
+                                        return (
+                                            <div key={food.id} className="grid grid-cols-[2fr,1fr,1fr] items-center gap-4">
+                                                <Label htmlFor={`quantity-${food.id}`}>{food.name}</Label>
+                                                <Input
+                                                    id={`quantity-${food.id}`}
+                                                    type="number"
+                                                    placeholder="Jumlah"
+                                                    value={quantities[food.id]?.quantity || ''}
+                                                    onChange={(e) => handleQuantityChange(food.id, 'quantity', e.target.value)}
+                                                />
+                                                {/* --- PENINGKATAN: Menggunakan komponen Select untuk satuan --- */}
+                                                <Select
+                                                    value={quantities[food.id]?.unit || 'gr'}
+                                                    onValueChange={(value) => handleQuantityChange(food.id, 'unit', value)}
+                                                >
+                                                    <SelectTrigger>
+                                                        <SelectValue />
+                                                    </SelectTrigger>
+                                                    <SelectContent>
+                                                        {availableUnits.map(unit => (
+                                                            <SelectItem key={unit} value={unit}>{unit}</SelectItem>
+                                                        ))}
+                                                    </SelectContent>
+                                                </Select>
+                                            </div>
+                                        );
+                                    })}
                                 </div>
                             </ScrollArea>
                         </div>

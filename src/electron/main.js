@@ -1,6 +1,6 @@
 // Lokasi file: src/electron/main.js
-// Deskripsi: (DIPERBARUI) Memperbaiki cara mendapatkan path file log
-//            sesuai dengan API terbaru dari electron-log v5.
+// Deskripsi: Memindahkan logika penutupan database ke event 'will-quit'
+//            dan menunggunya selesai sebelum aplikasi benar-benar berhenti.
 
 const { app, dialog, BrowserWindow, ipcMain, Menu, shell } = require('electron');
 const path = require('path');
@@ -11,29 +11,27 @@ const { initializeDatabase, getDbInstance, closeDatabase } = require('./database
 const { registerIpcHandlers } = require('./ipcHandlers');
 const dns = require('dns');
 
-// Konfigurasi Jaringan & Keamanan
+// ... (Konfigurasi Jaringan, Logging, dan process.on('uncaughtException') tetap sama) ...
 dns.setDefaultResultOrder('ipv4first');
 process.env.NODE_TLS_REJECT_UNAUTHORIZED = '0';
-
-// Konfigurasi Logging
 log.transports.file.resolvePathFn = () => path.join(app.getPath('userData'), 'logs/main.log');
 log.transports.file.level = 'info';
 Object.assign(console, log.functions);
 autoUpdater.logger = log;
-
 const rendererLogger = log.create({ logId: 'rendererLogger' });
 rendererLogger.transports.file.resolvePathFn = () => path.join(app.getPath('userData'), 'logs/renderer.log');
 rendererLogger.transports.file.level = 'error';
-
 process.on('uncaughtException', (error) => {
     log.error('Uncaught Exception:', error);
     dialog.showErrorBox('Kesalahan Fatal', 'Aplikasi mengalami kesalahan yang tidak terduga. Silakan periksa file log untuk detailnya.');
     app.quit();
 });
 
+
 let mainWindow;
 
 function createWindow() {
+    // ... (Fungsi createWindow tetap sama) ...
     mainWindow = new BrowserWindow({
         width: 1280,
         height: 800,
@@ -71,6 +69,7 @@ Menu.setApplicationMenu(null);
 log.info('Aplikasi dimulai...');
 
 app.whenReady().then(async () => {
+    // ... (Isi app.whenReady tetap sama) ...
     try {
         await initializeDatabase();
         const db = getDbInstance();
@@ -85,14 +84,10 @@ app.whenReady().then(async () => {
         });
         ipcMain.on('app:close', () => mainWindow.close());
         ipcMain.handle('app:get-version', () => app.getVersion());
-
-        // --- PERBAIKAN: Menggunakan metode yang benar untuk mendapatkan path log ---
         ipcMain.handle('app:open-logs', () => {
-            // Metode lama: const logPath = log.transports.file.resolvePath();
-            const logPath = log.transports.file.getFile().path; // Metode baru yang benar
+            const logPath = log.transports.file.getFile().path;
             shell.openPath(logPath);
         });
-        
         ipcMain.handle('app:check-for-updates', () => {
             autoUpdater.checkForUpdates();
         });
@@ -112,6 +107,7 @@ app.whenReady().then(async () => {
     }
 });
 
+// ... (Handler autoUpdater tetap sama) ...
 autoUpdater.on('update-available', () => {
     log.info('Pembaruan tersedia.');
     mainWindow.webContents.send('update-status', 'Pembaruan tersedia!');
@@ -146,8 +142,9 @@ autoUpdater.on('error', (err) => {
     mainWindow.webContents.send('update-status', 'Gagal memeriksa pembaruan');
 });
 
+
 app.on('window-all-closed', () => {
-    closeDatabase();
+    // HAPUS: closeDatabase() dipindahkan dari sini.
     if (process.platform !== 'darwin') {
         app.quit();
     }
@@ -159,6 +156,19 @@ app.on('activate', () => {
     }
 });
 
-app.on('will-quit', () => {
-    log.info('Aplikasi akan ditutup.');
+// --- PERBAIKAN KRITIS: Menangani penutupan DB di event 'will-quit' ---
+app.on('will-quit', async (event) => {
+    log.info('Aplikasi akan ditutup. Menutup koneksi database...');
+    // Mencegah aplikasi langsung keluar
+    event.preventDefault(); 
+    try {
+        await closeDatabase();
+        log.info('Database ditutup, aplikasi akan keluar sekarang.');
+        // Keluar dari aplikasi setelah database berhasil ditutup
+        app.exit();
+    } catch (err) {
+        log.error('Error saat menutup database sebelum keluar:', err);
+        // Tetap keluar meskipun ada error
+        app.exit();
+    }
 });

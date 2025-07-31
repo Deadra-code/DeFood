@@ -1,6 +1,5 @@
 // Lokasi file: src/features/Recipes/RecipeManagerPage.js
-// Deskripsi: (DIPERBAIKI) Menghapus props dan useEffect yang tidak lagi
-//            diperlukan karena logikanya sudah dipindahkan ke App.js.
+// Deskripsi: Menghapus props 'isDirty' dan 'setIsDirty', sekarang menggunakan dari UIStateContext.
 
 import React, { useState, useMemo } from 'react';
 import { Button } from '../../components/ui/button';
@@ -16,16 +15,15 @@ import { Input } from '../../components/ui/input';
 import { AlertDialog, AlertDialogContent, AlertDialogHeader, AlertDialogTitle, AlertDialogDescription, AlertDialogFooter, AlertDialogCancel, AlertDialogAction } from '../../components/ui/alert-dialog';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '../../components/ui/dropdown-menu';
 
-export default function RecipeManagerPage({ activeRecipe, setActiveRecipe, isDirty, setIsDirty }) {
+// HAPUS: props isDirty, setIsDirty
+export default function RecipeManagerPage({ activeRecipe, setActiveRecipe }) {
     const { recipes, loading: recipesLoading, refetchRecipes } = useRecipeContext();
+    const { isDirty, setIsDirty, setIsCreatingRecipe } = useUIStateContext(); // BARU
     const [searchTerm, setSearchTerm] = useState('');
-    const { setIsCreatingRecipe } = useUIStateContext();
     
     const [pendingRecipe, setPendingRecipe] = useState(null);
     const [isUnsavedAlertOpen, setIsUnsavedAlertOpen] = useState(false);
     const [sortOrder, setSortOrder] = useState('name-asc');
-
-    // Menghapus useEffect yang menangani newlyCreatedRecipe karena sudah ditangani oleh App.js
 
     const handleRecipeSelect = (recipe) => {
         if (isDirty) {
@@ -116,7 +114,8 @@ export default function RecipeManagerPage({ activeRecipe, setActiveRecipe, isDir
             
             <main className="flex-grow overflow-y-auto animate-slide-in-from-right" style={{ animationDelay: '100ms' }}>
                 {activeRecipe ? (
-                    <RecipeDetailView key={activeRecipe.id} recipe={activeRecipe} onRecipeDeleted={handleRecipeDeleted} onRecipeUpdated={handleRecipeUpdated} setIsDirty={setIsDirty} />
+                    // HAPUS: prop setIsDirty
+                    <RecipeDetailView key={activeRecipe.id} recipe={activeRecipe} onRecipeDeleted={handleRecipeDeleted} onRecipeUpdated={handleRecipeUpdated} />
                 ) : !recipesLoading && (
                     <div className="flex flex-col items-center justify-center h-full text-center">
                         <BookOpen className="h-16 w-16 text-muted-foreground/50 mb-4" />

@@ -1,8 +1,8 @@
 // Lokasi file: src/features/Recipes/components/CostAnalysisCard.jsx
-// Deskripsi: (DIPERBARUI) Margin keuntungan sekarang dikelola melalui props
-//            (margin dan onCostChange), tidak lagi dari SettingsContext.
+// Deskripsi: Menambahkan logika untuk menangani dan memformat input numerik
+//            agar tidak bisa diawali dengan angka nol yang tidak perlu (leading zeros).
 
-import React, { useMemo } from 'react';
+import React from 'react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '../../../components/ui/card';
 import { Label } from '../../../components/ui/label';
 import { Input } from '../../../components/ui/input';
@@ -12,14 +12,20 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '../../
 import { Popover, PopoverContent, PopoverTrigger } from '../../../components/ui/popover';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow, TableFooter } from '../../../components/ui/table';
 import { Button } from '../../../components/ui/button';
+import { ScrollArea } from '../../../components/ui/scroll-area';
+import { cn } from '../../../lib/utils';
 
+// ... (fungsi formatCurrency dan convertToGrams tetap sama) ...
 const formatCurrency = (value) => {
     return new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', minimumFractionDigits: 0 }).format(value || 0);
 };
 
 function convertToGrams(food, quantity, unit) {
     if (!food || typeof quantity !== 'number' || !unit) return 0;
-    if (unit.toLowerCase() === 'g' || unit.toLowerCase() === 'gram') return quantity;
+    const lowerCaseUnit = unit.toLowerCase();
+    if (lowerCaseUnit === 'g' || lowerCaseUnit === 'gram' || lowerCaseUnit === 'gr') {
+        return quantity;
+    }
     try {
         const conversions = JSON.parse(food.unit_conversions || '{}');
         const conversionRate = conversions[unit];
@@ -29,8 +35,9 @@ function convertToGrams(food, quantity, unit) {
 }
 
 const HppDetailsPopover = ({ ingredients = [], servings }) => {
+    // ... (isi komponen HppDetailsPopover tetap sama) ...
     const safeServings = servings > 0 ? servings : 1;
-    const totalHpp = useMemo(() => {
+    const totalHpp = React.useMemo(() => {
         if (!Array.isArray(ingredients)) return 0;
         return ingredients.reduce((acc, ing) => {
             const quantityInGrams = convertToGrams(ing.food, ing.quantity, ing.unit);
@@ -52,28 +59,41 @@ const HppDetailsPopover = ({ ingredients = [], servings }) => {
                     <h4 className="font-medium leading-none">Rincian HPP per Porsi</h4>
                     <p className="text-sm text-muted-foreground">Biaya bahan baku dibagi dengan jumlah porsi.</p>
                 </div>
-                <Table className="mt-4">
-                    <TableHeader><TableRow><TableHead>Bahan</TableHead><TableHead className="text-right">Biaya</TableHead></TableRow></TableHeader>
-                    <TableBody>
-                        {Array.isArray(ingredients) && ingredients.map(ing => {
-                            const quantityInGrams = convertToGrams(ing.food, ing.quantity, ing.unit);
-                            const multiplier = quantityInGrams / 100;
-                            const costPerIngredient = (ing.food.price_per_100g || 0) * multiplier;
-                            const costPerPortion = costPerIngredient / safeServings;
-                            return (
-                                <TableRow key={ing.id}>
-                                    <TableCell>{ing.food.name}</TableCell>
-                                    <TableCell className="text-right">{formatCurrency(costPerPortion)}</TableCell>
-                                </TableRow>
-                            );
-                        })}
-                    </TableBody>
-                    <TableFooter><TableRow><TableCell>Total</TableCell><TableCell className="text-right font-bold">{formatCurrency(totalHpp)}</TableCell></TableRow></TableFooter>
-                </Table>
+                <ScrollArea className={cn("mt-4", ingredients.length > 5 ? "h-72" : "")}>
+                    <Table className="relative">{/*
+                     */}<TableHeader className="sticky top-0 bg-popover z-10">
+                            <TableRow>
+                                <TableHead>Bahan</TableHead>
+                                <TableHead className="text-right">Biaya</TableHead>
+                            </TableRow>
+                        </TableHeader>{/*
+                     */}<TableBody>
+                            {Array.isArray(ingredients) && ingredients.map(ing => {
+                                const quantityInGrams = convertToGrams(ing.food, ing.quantity, ing.unit);
+                                const multiplier = quantityInGrams / 100;
+                                const costPerIngredient = (ing.food.price_per_100g || 0) * multiplier;
+                                const costPerPortion = costPerIngredient / safeServings;
+                                return (
+                                    <TableRow key={ing.id}>
+                                        <TableCell className="truncate">{ing.food.name}</TableCell>
+                                        <TableCell className="text-right">{formatCurrency(costPerPortion)}</TableCell>
+                                    </TableRow>
+                                );
+                            })}
+                        </TableBody>{/*
+                     */}<TableFooter className="sticky bottom-0 bg-popover z-10">
+                            <TableRow className="bg-primary text-primary-foreground hover:bg-primary/90">
+                                <TableCell className="font-bold">Total</TableCell>
+                                <TableCell className="text-right font-bold">{formatCurrency(totalHpp)}</TableCell>
+                            </TableRow>
+                        </TableFooter>{/*
+                 */}</Table>
+                </ScrollArea>
             </PopoverContent>
         </Popover>
     );
 };
+
 
 export default function CostAnalysisCard({ 
     hppPerPortion, 
@@ -84,6 +104,14 @@ export default function CostAnalysisCard({
     margin,
     onCostChange,
 }) {
+    // --- PENINGKATAN UX: Fungsi untuk menangani input numerik ---
+    const handleNumericInputChange = (field, value) => {
+        // Mengonversi nilai ke angka, menghilangkan leading zeros, lalu kembali ke string
+        // Jika input kosong atau hanya "0", biarkan seperti itu.
+        const parsedValue = value === '' ? '' : parseInt(value, 10).toString();
+        onCostChange(field, parsedValue);
+    };
+
     const opCost = parseFloat(operationalCost) || 0;
     const labCost = parseFloat(laborCost) || 0;
     const currentMargin = margin === undefined ? 50 : parseFloat(margin);
@@ -111,8 +139,8 @@ export default function CostAnalysisCard({
                             <Input 
                                 id="opCost-input" 
                                 type="number" 
-                                value={opCost} 
-                                onChange={e => onCostChange('cost_operational_recipe', e.target.value)} 
+                                value={operationalCost} // Gunakan state asli untuk value
+                                onChange={e => handleNumericInputChange('cost_operational_recipe', e.target.value)} 
                                 className="w-28 h-8 text-right"
                             />
                         </div>
@@ -121,8 +149,8 @@ export default function CostAnalysisCard({
                             <Input 
                                 id="laborCost-input" 
                                 type="number" 
-                                value={labCost} 
-                                onChange={e => onCostChange('cost_labor_recipe', e.target.value)} 
+                                value={laborCost} // Gunakan state asli untuk value
+                                onChange={e => handleNumericInputChange('cost_labor_recipe', e.target.value)} 
                                 className="w-28 h-8 text-right"
                             />
                         </div>
@@ -138,7 +166,7 @@ export default function CostAnalysisCard({
                                 id="margin-input" 
                                 type="number" 
                                 value={currentMargin} 
-                                onChange={e => onCostChange('margin_percent', e.target.value)} 
+                                onChange={e => handleNumericInputChange('margin_percent', e.target.value)} 
                                 className="w-20 h-8 text-right" 
                             />
                         </div>

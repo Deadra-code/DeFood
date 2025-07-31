@@ -1,5 +1,5 @@
 // Lokasi file: src/features/FoodDatabase/components/FoodCard.jsx
-// Deskripsi: Komponen untuk menampilkan satu item makanan dalam format kartu.
+// Deskripsi: Dibungkus dengan React.memo untuk optimalisasi performa.
 
 import React from 'react';
 import { Button } from '../../../components/ui/button';
@@ -20,8 +20,8 @@ const MacroSummary = ({ protein, carbs, fat }) => (
     </div>
 );
 
-
-const FoodCard = ({ food, onEdit, onDelete, style }) => {
+// BARU: Komponen dibungkus dengan React.memo
+const FoodCard = React.memo(({ food, onEdit, onDelete, style }) => {
     return (
         <Card style={style} className="flex flex-col transition-all hover:-translate-y-1 hover:shadow-lg animate-fade-in-up">
             <CardHeader>
@@ -60,6 +60,6 @@ const FoodCard = ({ food, onEdit, onDelete, style }) => {
             </CardFooter>
         </Card>
     );
-};
+});
 
 export default FoodCard;

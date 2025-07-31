@@ -1,7 +1,5 @@
 // Lokasi file: src/features/Recipes/RecipeDetailView.js
-// Deskripsi: (LENGKAP & TERBARU) Mengelola state lengkap untuk detail resep,
-//            termasuk biaya dan margin yang spesifik, dan meneruskannya ke
-//            komponen anak untuk ditampilkan dan diedit.
+// Deskripsi: Menggunakan setIsDirty dari UIStateContext, bukan dari props.
 
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { AlertDialog, AlertDialogContent, AlertDialogHeader, AlertDialogTitle, AlertDialogDescription, AlertDialogFooter, AlertDialogCancel, AlertDialogAction } from '../../components/ui/alert-dialog';
@@ -31,10 +29,11 @@ import { AiButton } from './components/RecipeDetail/AiButton';
 import AddIngredientDialog from './components/AddIngredientDialog';
 import { InstructionsEditor } from './components/RecipeDetail/InstructionsEditor';
 
-export default function RecipeDetailView({ recipe, onRecipeDeleted, onRecipeUpdated, setIsDirty: setParentIsDirty }) {
+// HAPUS: prop setIsDirty
+export default function RecipeDetailView({ recipe, onRecipeDeleted, onRecipeUpdated }) {
     const { notify } = useNotifier();
     const { duplicateRecipe, updateRecipe } = useRecipeContext();
-    const { setFoodToEdit } = useUIStateContext();
+    const { setFoodToEdit, setIsDirty } = useUIStateContext(); // BARU: dapatkan setIsDirty dari konteks
     const { foods, updateCounter } = useFoodContext();
     
     const [editableRecipe, setEditableRecipe] = useState(null);
@@ -51,14 +50,15 @@ export default function RecipeDetailView({ recipe, onRecipeDeleted, onRecipeUpda
     
     const [lastDeletedIngredient, setLastDeletedIngredient] = useState(null);
 
-    const isDirty = useMemo(() => {
+    const isDirtyMemo = useMemo(() => {
         if (!initialRecipe || !editableRecipe) return false;
         return !isEqual(initialRecipe, editableRecipe);
     }, [initialRecipe, editableRecipe]);
 
+    // BARU: Gunakan useEffect untuk menyinkronkan isDirtyMemo lokal dengan state global
     useEffect(() => {
-        setParentIsDirty(isDirty);
-    }, [isDirty, setParentIsDirty]);
+        setIsDirty(isDirtyMemo);
+    }, [isDirtyMemo, setIsDirty]);
 
     const recipeTotals = useMemo(() => calculateRecipeTotals(editableRecipe?.ingredients), [editableRecipe?.ingredients]);
     
@@ -133,6 +133,7 @@ export default function RecipeDetailView({ recipe, onRecipeDeleted, onRecipeUpda
         }
     };
 
+    // ... (sisa fungsi tetap sama) ...
     const handleDeleteRecipe = async () => {
         try {
             await api.deleteRecipe(recipe.id);
@@ -242,6 +243,7 @@ export default function RecipeDetailView({ recipe, onRecipeDeleted, onRecipeUpda
         }
     };
 
+
     if (isLoading || !editableRecipe) {
         return <div className="p-8 flex items-center justify-center h-full"><Loader2 className="h-8 w-8 animate-spin" /></div>;
     }
@@ -250,7 +252,7 @@ export default function RecipeDetailView({ recipe, onRecipeDeleted, onRecipeUpda
         <div className="p-6 lg:p-8 space-y-8 overflow-y-auto h-full">
             <RecipeHeader 
                 details={editableRecipe}
-                isDifferent={isDirty}
+                isDifferent={isDirtyMemo}
                 isSaving={isSaving}
                 aiLoading={aiLoading}
                 nameSuggestions={nameSuggestions}

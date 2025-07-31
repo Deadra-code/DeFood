@@ -1,6 +1,6 @@
 // Lokasi file: src/electron/database.js
-// Deskripsi: (DIPERBARUI) Menambahkan migrasi database ke v11 untuk
-//            menyimpan margin keuntungan spesifik per resep.
+// Deskripsi: Memperbaiki fungsi closeDatabase agar menangani proses penutupan secara asinkron
+//            untuk mencegah crash saat aplikasi keluar.
 
 const { app } = require('electron');
 const path = require('path');
@@ -8,7 +8,7 @@ const sqlite3 = require('sqlite3').verbose();
 const log = require('electron-log');
 
 const dbPath = path.join(app.getPath('userData'), 'defood_v2.db');
-const LATEST_DB_VERSION = 11; // --- PERUBAHAN: Versi dinaikkan ke 11 ---
+const LATEST_DB_VERSION = 11;
 let db;
 
 function promisifyDb(dbInstance) {
@@ -136,11 +136,9 @@ async function runMigrations(currentVersion) {
         }
     }
     
-    // --- BARU: Migrasi v11 untuk margin keuntungan per resep ---
     if (currentVersion < 11) {
         log.info('Migrasi ke v11: Menambahkan kolom margin keuntungan per resep...');
         try {
-            // Menambahkan kolom dengan nilai default 50
             await db.runAsync(`ALTER TABLE recipes ADD COLUMN margin_percent REAL DEFAULT 50`);
         } catch (err) {
             if (!err.message.includes('duplicate column name')) {
@@ -185,6 +183,24 @@ function initializeDatabase() {
 }
 
 function getDbInstance() { return db; }
-function closeDatabase() { if (db) { db.close(); } }
+
+// --- PERBAIKAN KRITIS: Mengubah fungsi closeDatabase menjadi Promise ---
+function closeDatabase() {
+    return new Promise((resolve, reject) => {
+        if (db) {
+            db.close((err) => {
+                if (err) {
+                    log.error('Gagal menutup database:', err.message);
+                    reject(err);
+                } else {
+                    log.info('Koneksi database berhasil ditutup.');
+                    resolve();
+                }
+            });
+        } else {
+            resolve();
+        }
+    });
+}
 
 module.exports = { initializeDatabase, getDbInstance, closeDatabase };

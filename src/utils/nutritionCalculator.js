@@ -1,6 +1,5 @@
 // Lokasi file: src/utils/nutritionCalculator.js
-// Deskripsi: (DIPERBARUI) Menambahkan pemeriksaan `Array.isArray` untuk memastikan
-//            fungsi hanya berjalan jika inputnya adalah array, mencegah error.
+// Deskripsi: Memperbaiki bug di mana fungsi kalkulasi tidak mengenali satuan 'gr'.
 
 /**
  * Mengkonversi jumlah bahan ke gram. Melempar error jika konversi tidak ditemukan.
@@ -15,7 +14,9 @@ function convertToGrams(food, quantity, unit) {
         return 0;
     }
     const lowerCaseUnit = unit.toLowerCase();
-    if (lowerCaseUnit === 'g' || lowerCaseUnit === 'gram') {
+    
+    // --- PERBAIKAN: Menambahkan 'gr' sebagai satuan gram yang valid ---
+    if (lowerCaseUnit === 'g' || lowerCaseUnit === 'gram' || lowerCaseUnit === 'gr') {
         return quantity;
     }
 
@@ -41,7 +42,6 @@ function convertToGrams(food, quantity, unit) {
  */
 export function validateIngredientsForCalculation(ingredients = []) {
     const errors = [];
-    // PERBAIKAN: Pemeriksaan yang lebih kuat untuk memastikan input adalah array.
     if (!Array.isArray(ingredients) || ingredients.length === 0) {
         return errors;
     }
@@ -70,7 +70,6 @@ export function validateIngredientsForCalculation(ingredients = []) {
 export function calculateRecipeTotals(ingredients = []) {
     const totals = { calories: 0, protein: 0, fat: 0, carbs: 0, fiber: 0, price: 0 };
 
-    // PERBAIKAN: Pemeriksaan yang lebih kuat untuk memastikan input adalah array.
     if (!Array.isArray(ingredients) || ingredients.length === 0) {
         return totals;
     }

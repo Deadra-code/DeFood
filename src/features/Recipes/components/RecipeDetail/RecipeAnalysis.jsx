@@ -1,21 +1,23 @@
 // Lokasi file: src/features/Recipes/components/RecipeDetail/RecipeAnalysis.jsx
-// Deskripsi: (DIPERBARUI) Komponen ini sekarang menerima dan meneruskan prop
-//            margin keuntungan ke CostAnalysisCard.
+// Deskripsi: Menghapus impor 'Flame' yang tidak digunakan untuk menghilangkan peringatan ESLint.
 
 import React from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '../../../../components/ui/card';
-import { Flame } from 'lucide-react';
+// HAPUS: import { Flame } from 'lucide-react';
 import CostAnalysisCard from '../CostAnalysisCard';
 import MacroBarChart from '../MacroBarChart';
 
-const StatCard = ({ title, value, icon }) => (
-    <Card>
-        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">{title}</CardTitle>
-            {icon}
+const StatCard = ({ title, value, description }) => (
+    <Card className="flex flex-col justify-center">
+        <CardHeader className="pb-2">
+            <CardTitle className="text-sm font-medium text-muted-foreground">{title}</CardTitle>
         </CardHeader>
         <CardContent>
-            <div className="text-2xl font-bold">{value}</div>
+            <div className="flex items-baseline gap-2">
+                <span className="text-4xl font-bold tracking-tight">{value}</span>
+                <span className="text-xl text-muted-foreground">kkal</span>
+            </div>
+            <p className="text-xs text-muted-foreground mt-1">{description}</p>
         </CardContent>
     </Card>
 );
@@ -32,10 +34,23 @@ export const RecipeAnalysis = ({
 }) => {
     const safeServings = servings > 0 ? servings : 1;
     const hppPerPortion = recipeTotals.price / safeServings;
+    const caloriesPerPortion = recipeTotals.calories / safeServings;
 
     return (
-        <div className="grid gap-4 grid-cols-2">
-            <StatCard title="Total Kalori / Porsi" value={`${(recipeTotals.calories / safeServings).toFixed(0)} kkal`} icon={<Flame className="h-4 w-4 text-muted-foreground" />} />
+        <div className="grid gap-6 grid-cols-1 lg:grid-cols-2">
+            <div className="grid gap-6">
+                 <StatCard 
+                    title="Total Kalori" 
+                    value={caloriesPerPortion.toFixed(0)}
+                    description="per porsi saji"
+                />
+                <MacroBarChart
+                    protein={recipeTotals.protein / safeServings}
+                    carbs={recipeTotals.carbs / safeServings}
+                    fat={recipeTotals.fat / safeServings}
+                    fiber={recipeTotals.fiber / safeServings}
+                />
+            </div>
             <CostAnalysisCard
                 key={recipeId}
                 hppPerPortion={hppPerPortion}
@@ -43,14 +58,8 @@ export const RecipeAnalysis = ({
                 servings={servings}
                 operationalCost={operationalCost}
                 laborCost={laborCost}
-                margin={margin} // Meneruskan prop
+                margin={margin}
                 onCostChange={onCostChange}
-            />
-            <MacroBarChart
-                protein={recipeTotals.protein / safeServings}
-                carbs={recipeTotals.carbs / safeServings}
-                fat={recipeTotals.fat / safeServings}
-                fiber={recipeTotals.fiber / safeServings}
             />
         </div>
     );

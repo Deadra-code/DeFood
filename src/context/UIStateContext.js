@@ -1,5 +1,5 @@
 // Lokasi file: src/context/UIStateContext.js
-// Deskripsi: Disederhanakan untuk hanya mengelola state dialog aplikasi.
+// Deskripsi: Menambahkan state 'isDirty' untuk manajemen perubahan yang belum disimpan secara global.
 
 import React, { createContext, useContext, useState } from 'react';
 
@@ -7,17 +7,21 @@ const UIStateContext = createContext();
 
 export const UIStateProvider = ({ children }) => {
     // State untuk mengelola data bahan yang sedang diedit atau dibuat.
-    // Jika null, dialog tertutup. Jika object, dialog terbuka.
     const [foodToEdit, setFoodToEdit] = useState(null);
     
     // State untuk mengontrol visibilitas dialog pembuatan resep baru.
     const [isCreatingRecipe, setIsCreatingRecipe] = useState(false);
+
+    // BARU: State untuk melacak perubahan yang belum disimpan di halaman detail resep.
+    const [isDirty, setIsDirty] = useState(false);
 
     const value = {
         foodToEdit,
         setFoodToEdit,
         isCreatingRecipe,
         setIsCreatingRecipe,
+        isDirty,
+        setIsDirty,
     };
 
     return <UIStateContext.Provider value={value}>{children}</UIStateContext.Provider>;

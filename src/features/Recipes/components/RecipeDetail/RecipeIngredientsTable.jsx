@@ -1,6 +1,5 @@
 // Lokasi file: src/features/Recipes/components/RecipeDetail/RecipeIngredientsTable.jsx
-// Deskripsi: Versi stabil yang mengelola state-nya sendiri, sebelum
-//            logika dipindahkan ke custom hook.
+// Deskripsi: Memperbarui default unit menjadi 'gr' agar konsisten.
 
 import React, { useState, useEffect } from 'react';
 import { DragDropContext, Droppable, Draggable } from '@hello-pangea/dnd';
@@ -115,10 +114,11 @@ export const RecipeIngredientsTable = ({
                         {(provided) => (
                             <TableBody {...provided.droppableProps} ref={provided.innerRef}>
                                 {ingredients.length > 0 ? ingredients.map((ing, index) => {
-                                    let availableUnits = ['g'];
+                                    // --- PENINGKATAN: Logika yang sama untuk mendapatkan unit ---
+                                    let availableUnits = ['gr'];
                                     try {
                                         const conversions = JSON.parse(ing.food.unit_conversions || '{}');
-                                        availableUnits = ['g', ...Object.keys(conversions)];
+                                        availableUnits = ['gr', ...Object.keys(conversions)];
                                     } catch (e) { /* Biarkan default */ }
 
                                     return (
@@ -137,7 +137,7 @@ export const RecipeIngredientsTable = ({
                                                     </TableCell>
                                                     <TableCell className="font-medium">
                                                         <div>{ing.food.name}</div>
-                                                        <div className="text-xs text-muted-foreground"> {ing.food.calories_kcal} kkal &bull; {formatCurrency(ing.food.price_per_100g)} / 100g </div>
+                                                        <div className="text-xs text-muted-foreground"> {ing.food.calories_kcal} kkal &bull; {formatCurrency(ing.food.price_per_100g)} / 100gr </div>
                                                     </TableCell>
                                                     <TableCell>
                                                         {editingIngredient.id === ing.id ? (
