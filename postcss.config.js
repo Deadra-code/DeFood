@@ -1,10 +1,9 @@
 // Lokasi: postcss.config.js
-// Deskripsi: File konfigurasi ini memberitahu Vite untuk menggunakan
-// plugin Tailwind CSS dan Autoprefixer saat memproses file CSS.
+// Deskripsi: (DIPERBARUI) Menggunakan sintaks CommonJS untuk menghilangkan peringatan build.
 
-export default {
+module.exports = {
   plugins: {
     tailwindcss: {},
     autoprefixer: {},
   },
-}
+};

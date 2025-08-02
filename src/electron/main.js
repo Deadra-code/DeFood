@@ -50,27 +50,30 @@ function createWindow() {
         height: 800,
         frame: false, // Jendela tanpa bingkai standar (frameless).
         webPreferences: {
-            // Menjalankan skrip preload untuk mengekspos API ke proses renderer.
-            preload: path.join(__dirname, '../../public/preload.js'),
+            // --- PERBAIKAN KRUSIAL ---
+            // Path ini sekarang menunjuk ke file preload.js yang akan kita pastikan
+            // berada di direktori yang sama dengan main.js setelah proses build.
+            preload: path.join(__dirname, 'preload.js'),
             nodeIntegration: false, // Penting untuk keamanan.
             contextIsolation: true, // Penting untuk keamanan.
         },
-        icon: path.join(__dirname, '../../public/favicon.ico'),
+        // Path ikon di produksi akan berada di root, jadi kita sesuaikan
+        icon: path.join(__dirname, isDev ? '../../public/favicon.ico' : 'favicon.ico'),
         show: false // Jendela disembunyikan saat dibuat, ditampilkan saat siap.
     });
 
-    // --- PERUBAHAN LOGIKA UNTUK VITE ---
+    // --- PERBAIKAN LOGIKA PATH UNTUK VITE ---
     const VITE_DEV_SERVER_URL = 'http://localhost:5173';
 
     // Menentukan URL yang akan dimuat berdasarkan lingkungan (dev/prod).
-    const startUrl = isDev
-        // Jika dalam mode pengembangan, load dari server Vite.
-        ? VITE_DEV_SERVER_URL
-        // Jika dalam mode produksi, load dari file hasil build Vite.
-        : `file://${path.join(__dirname, '../../dist/index.html')}`;
+    if (isDev) {
+        mainWindow.loadURL(VITE_DEV_SERVER_URL);
+    } else {
+        // Di produksi, React app (index.html) dan main.js berada di level yang sama
+        // di dalam folder 'dist' yang menjadi root dari app.asar.
+        mainWindow.loadFile(path.join(__dirname, 'index.html'));
+    }
         
-    mainWindow.loadURL(startUrl);
-
     // Menampilkan jendela setelah konten siap untuk ditampilkan.
     mainWindow.once('ready-to-show', () => {
         mainWindow.maximize();
