@@ -43,7 +43,8 @@ const updateIngredientOrderSchema = z.array(z.object({
 
 // Skema baru untuk validasi pengaturan
 const settingsSchema = z.object({
-    margin: z.preprocess(val => Number(val), z.number().min(0)),
+    // --- PERBAIKAN: Baris ini dihapus karena margin sekarang dikelola per resep ---
+    // margin: z.preprocess(val => Number(val), z.number().min(0)),
     operationalCost: z.preprocess(val => Number(val), z.number().min(0)),
     laborCost: z.preprocess(val => Number(val), z.number().min(0)),
     googleApiKey: z.string().optional().nullable(),

@@ -1,20 +1,81 @@
 // Lokasi file: src/features/FoodDatabase/FoodForm.jsx
-// Deskripsi: Memperbaiki alignment konten di dalam modal agar terpusat.
+// Deskripsi: Komponen Select untuk satuan telah diganti dengan Combobox yang dinamis,
+//            memungkinkan penambahan satuan custom secara manual atau dari hasil AI.
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { Button } from '../../components/ui/button';
 import { Input } from '../../components/ui/input';
 import { Label } from '../../components/ui/label';
 import { DialogHeader, DialogFooter, DialogTitle, DialogDescription } from '../../components/ui/dialog';
-import { Loader2, PlusCircle, X, Sparkles, Link as LinkIcon } from 'lucide-react';
+import { Loader2, PlusCircle, X, Sparkles, Link as LinkIcon, Check, ChevronsUpDown } from 'lucide-react';
 import { foodSchema } from '../../lib/schemas';
 import * as api from '../../api/electronAPI';
 import { useNotifier } from '../../hooks/useNotifier';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../../components/ui/select';
 import { Alert, AlertDescription } from '../../components/ui/alert';
 import { Card, CardContent, CardHeader, CardTitle } from '../../components/ui/card';
+import { Popover, PopoverTrigger, PopoverContent } from '../../components/ui/popover';
+import { Command, CommandInput, CommandEmpty, CommandGroup, CommandItem, CommandList } from '../../components/ui/command';
+import { cn } from '../../lib/utils';
 
-const unitOptions = ['g', 'kg', 'ons', 'ml', 'l', 'sdm', 'sdt', 'butir', 'pcs', 'siung', 'buah', 'lembar', 'batang'];
+// --- PERUBAHAN: Daftar satuan awal yang umum ---
+const PREDEFINED_UNITS = ['g', 'kg', 'ons', 'ml', 'l', 'sdm', 'sdt', 'butir', 'pcs', 'siung', 'buah', 'lembar', 'batang'];
+
+// --- BARU: Komponen Combobox untuk Satuan yang Fleksibel ---
+const UnitCombobox = ({ value, onChange, options }) => {
+    const [open, setOpen] = useState(false);
+    const [search, setSearch] = useState('');
+
+    const filteredOptions = options.filter(option => option.toLowerCase().includes(search.toLowerCase()));
+    const showCreateOption = search && !filteredOptions.some(option => option.toLowerCase() === search.toLowerCase());
+
+    return (
+        <Popover open={open} onOpenChange={setOpen}>
+            <PopoverTrigger asChild>
+                <Button variant="outline" role="combobox" aria-expanded={open} className="w-[120px] justify-between">
+                    {value || "Pilih satuan..."}
+                    <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                </Button>
+            </PopoverTrigger>
+            <PopoverContent className="w-[200px] p-0">
+                <Command>
+                    <CommandInput placeholder="Cari/buat satuan..." value={search} onValueChange={setSearch} />
+                    <CommandList>
+                        <CommandEmpty>
+                            {showCreateOption ? 'Tekan Enter untuk membuat.' : 'Satuan tidak ditemukan.'}
+                        </CommandEmpty>
+                        <CommandGroup>
+                            {filteredOptions.map((option) => (
+                                <CommandItem
+                                    key={option}
+                                    value={option}
+                                    onSelect={(currentValue) => {
+                                        onChange(currentValue === value ? "" : currentValue);
+                                        setOpen(false);
+                                    }}
+                                >
+                                    <Check className={cn("mr-2 h-4 w-4", value === option ? "opacity-100" : "opacity-0")} />
+                                    {option}
+                                </CommandItem>
+                            ))}
+                            {showCreateOption && (
+                                <CommandItem
+                                    onSelect={() => {
+                                        onChange(search);
+                                        setOpen(false);
+                                    }}
+                                >
+                                    <PlusCircle className="mr-2 h-4 w-4" />
+                                    Buat "{search}"
+                                </CommandItem>
+                            )}
+                        </CommandGroup>
+                    </CommandList>
+                </Command>
+            </PopoverContent>
+        </Popover>
+    );
+};
+
 
 const FoodForm = ({ food, onSave, onCancel, isSaving }) => {
     const [formData, setFormData] = useState({});
@@ -24,6 +85,14 @@ const FoodForm = ({ food, onSave, onCancel, isSaving }) => {
 
     const [aiResult, setAiResult] = useState(null);
     const [isAiLoading, setIsAiLoading] = useState(false);
+    const [isConversionAiLoading, setIsConversionAiLoading] = useState(false);
+
+    // --- PERUBAHAN: Membuat daftar satuan menjadi dinamis ---
+    const dynamicUnitOptions = useMemo(() => {
+        const fromConversions = conversions.map(c => c.unit).filter(Boolean);
+        // Menggabungkan satuan predefined dengan satuan dari state, dan memastikan unik
+        return [...new Set([...PREDEFINED_UNITS, ...fromConversions])];
+    }, [conversions]);
 
     useEffect(() => {
         const initialFormData = food || { name: '', serving_size_g: 100, calories_kcal: '', carbs_g: '', protein_g: '', fat_g: '', fiber_g: '', price_per_100g: '', category: '' };
@@ -74,6 +143,29 @@ const FoodForm = ({ food, onSave, onCancel, isSaving }) => {
         }
     };
 
+    const handleAiFetchConversions = async () => {
+        if (!formData.name) {
+            notify.error("Masukkan nama bahan terlebih dahulu.");
+            return;
+        }
+        setIsConversionAiLoading(true);
+        try {
+            const result = await api.generateUnitConversions(formData.name);
+            const newConversions = Object.entries(result).map(([unit, grams]) => ({ unit, grams }));
+            
+            if (newConversions.length > 0) {
+                setConversions(newConversions);
+                notify.success(`${newConversions.length} konversi satuan berhasil ditemukan.`);
+            } else {
+                notify.info("Tidak ada konversi satuan umum yang ditemukan untuk bahan ini.");
+            }
+        } catch (error) {
+            notify.error(`Gagal mendapatkan konversi AI: ${error.message}`);
+        } finally {
+            setIsConversionAiLoading(false);
+        }
+    };
+
     const handleApplyAiData = () => {
         if (!aiResult || aiResult.error) return;
         const { nutrition, category, price_per_100g } = aiResult;
@@ -117,6 +209,7 @@ const FoodForm = ({ food, onSave, onCancel, isSaving }) => {
             </DialogHeader>
             
             <div className="py-4 max-h-[70vh] overflow-y-auto pr-4 space-y-4">
+                {/* Bagian Nama Bahan dan Data AI tidak berubah */}
                 <div className="space-y-2">
                     <Label htmlFor="name">Nama Bahan</Label>
                     <div className="flex gap-2">
@@ -177,6 +270,7 @@ const FoodForm = ({ food, onSave, onCancel, isSaving }) => {
                     </div>
                 )}
 
+                {/* Bagian input nutrisi tidak berubah */}
                 <div className="space-y-2">
                     <Label htmlFor="category">Kategori</Label>
                     <Input id="category" value={formData.category || ''} onChange={e => handleChange('category', e.target.value)} />
@@ -210,17 +304,23 @@ const FoodForm = ({ food, onSave, onCancel, isSaving }) => {
                 </div>
 
                 <div className="space-y-3 pt-4 border-t">
-                    <Label>Konversi Satuan (Opsional)</Label>
+                    <div className="flex items-center justify-between">
+                         <Label>Konversi Satuan (Opsional)</Label>
+                         <Button type="button" variant="ghost" size="sm" onClick={handleAiFetchConversions} disabled={isConversionAiLoading || !formData.name}>
+                            {isConversionAiLoading ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Sparkles className="h-4 w-4 mr-2" />}
+                            Cari Otomatis
+                         </Button>
+                    </div>
                     <div className="space-y-2">
                         {conversions.map((conv, index) => (
                             <div key={index} className="flex items-center gap-2">
                                 <Input type="number" value="1" readOnly className="w-12 bg-muted" />
-                                <Select value={conv.unit} onValueChange={(value) => handleConversionChange(index, 'unit', value)}>
-                                    <SelectTrigger className="w-[120px]"><SelectValue /></SelectTrigger>
-                                    <SelectContent>
-                                        {unitOptions.map(u => <SelectItem key={u} value={u}>{u}</SelectItem>)}
-                                    </SelectContent>
-                                </Select>
+                                {/* --- PERUBAHAN: Menggunakan UnitCombobox baru --- */}
+                                <UnitCombobox
+                                    value={conv.unit}
+                                    onChange={(value) => handleConversionChange(index, 'unit', value)}
+                                    options={dynamicUnitOptions}
+                                />
                                 <span>=</span>
                                 <Input type="number" placeholder="gram" value={conv.grams} onChange={(e) => handleConversionChange(index, 'grams', e.target.value)} className="flex-1" />
                                 <Button type="button" variant="ghost" size="icon" onClick={() => removeConversion(index)}><X className="h-4 w-4" /></Button>

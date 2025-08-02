@@ -1,5 +1,5 @@
 // Lokasi file: src/electron/ipcHandlers/settingsHandlers.js
-// Deskripsi: Handler untuk menyimpan dan mengambil pengaturan, dengan validasi.
+// Deskripsi: Handler untuk menyimpan dan mengambil pengaturan, dengan validasi dan penanganan error yang lebih baik.
 
 const log = require('electron-log');
 const { settingsSchema } = require('../schemas.cjs');
@@ -33,24 +33,33 @@ function registerSettingsHandlers(ipcMain, db) {
 
     ipcMain.handle('db:save-settings', async (event, settings) => {
         try {
-            // Validasi payload sebelum menyimpan
+            // 1. Validasi data terlebih dahulu. Jika gagal, akan langsung melempar error.
             const validatedSettings = settingsSchema.parse(settings);
 
-            const sql = "INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)";
+            // 2. Jika validasi berhasil, baru mulai transaksi.
             await db.runAsync('BEGIN TRANSACTION');
-            for (const key in validatedSettings) {
-                if (Object.hasOwnProperty.call(validatedSettings, key)) {
-                    // Simpan semua sebagai string, konversi terjadi saat get/set
-                    await db.runAsync(sql, [key, String(validatedSettings[key])]);
+            try {
+                const sql = "INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)";
+                for (const key in validatedSettings) {
+                    if (Object.hasOwnProperty.call(validatedSettings, key)) {
+                        await db.runAsync(sql, [key, String(validatedSettings[key])]);
+                    }
                 }
+                await db.runAsync('COMMIT');
+                log.info('Pengaturan bisnis berhasil disimpan.');
+                return { success: true };
+            } catch (transactionError) {
+                // 3. Blok catch ini HANYA untuk error yang terjadi DI DALAM transaksi.
+                log.error('Gagal saat transaksi penyimpanan pengaturan, melakukan rollback:', transactionError);
+                await db.runAsync('ROLLBACK');
+                throw transactionError; // Lempar kembali error asli setelah rollback.
             }
-            await db.runAsync('COMMIT');
-            log.info('Pengaturan bisnis berhasil disimpan.');
-            return { success: true };
         } catch (err) {
-            await db.runAsync('ROLLBACK');
-            log.error('Gagal menyimpan pengaturan:', err);
-            throw err;
+            // 4. Blok catch ini akan menangkap error validasi (sebelum transaksi)
+            //    atau error dari blok catch transaksi di atas.
+            log.error('Gagal menyimpan pengaturan:', err.message);
+            // Tidak ada rollback di sini karena transaksi mungkin belum dimulai.
+            throw err; // Lempar error agar frontend tahu ada masalah.
         }
     });
 }

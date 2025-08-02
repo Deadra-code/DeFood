@@ -1,5 +1,5 @@
 // Lokasi file: src/electron/ipcHandlers/foodHandlers.js
-// Deskripsi: Melempar error yang lebih spesifik untuk pelanggaran UNIQUE constraint.
+// Deskripsi: Memperbaiki dan menyederhanakan logika penyimpanan 'unit_conversions'.
 
 const log = require('electron-log');
 const { foodSchema } = require('../schemas.cjs');
@@ -43,7 +43,7 @@ async function getGroundedFoodDataWithConversions(apiKey, foodName) {
     }
 }
 
-
+// --- PERBAIKAN: Fungsi update disederhanakan ---
 async function updateFoodInDb(db, foodData) {
     try {
         const validatedFood = foodSchema.parse(foodData);
@@ -55,14 +55,14 @@ async function updateFoodInDb(db, foodData) {
             validatedFood.name, validatedFood.serving_size_g, validatedFood.calories_kcal,
             validatedFood.carbs_g, validatedFood.protein_g, validatedFood.fat_g, validatedFood.fiber_g,
             validatedFood.price_per_100g, validatedFood.category,
-            typeof validatedFood.unit_conversions === 'object' ? JSON.stringify(validatedFood.unit_conversions) : validatedFood.unit_conversions,
+            // Logika typeof yang tidak perlu dihapus, karena data sudah pasti string dari Zod.
+            validatedFood.unit_conversions, 
             validatedFood.id
         ];
         await db.runAsync(sql, params);
         return { success: true };
     } catch (err) {
         log.error('Gagal memperbarui bahan di DB:', err);
-        // BARU: Penanganan error spesifik
         if (err.message.includes('UNIQUE constraint')) {
             throw new Error(`DB_UNIQUE_CONSTRAINT: Nama bahan "${foodData.name}" sudah ada.`);
         }
@@ -88,7 +88,6 @@ function registerFoodHandlers(ipcMain, db) {
             return { id: result.lastID, ...validatedFood };
         } catch (err) {
             log.error('Gagal menambahkan bahan:', err);
-            // BARU: Penanganan error spesifik
             if (err.message.includes('UNIQUE constraint')) {
                 throw new Error(`DB_UNIQUE_CONSTRAINT: Nama bahan "${food.name}" sudah ada.`);
             }
@@ -98,12 +97,12 @@ function registerFoodHandlers(ipcMain, db) {
 
     ipcMain.handle('db:update-food', async (event, food) => updateFoodInDb(db, food));
 
+    // ... (sisa handler tidak berubah) ...
     ipcMain.handle('db:delete-food', async (event, id) => {
         await db.runAsync("DELETE FROM foods WHERE id = ?", [id]);
         return { success: true };
     });
 
-    // ... (sisa handler tetap sama) ...
     ipcMain.handle('db:delete-foods-bulk', async (event, ids) => {
         if (!Array.isArray(ids) || ids.length === 0) {
             throw new Error("Payload tidak valid: harus berupa array ID.");
@@ -125,6 +124,38 @@ function registerFoodHandlers(ipcMain, db) {
         const apiKey = apiKeyRow?.value;
         if (!apiKey) throw new Error("Kunci API Google AI belum diatur.");
         return getGroundedFoodDataWithConversions(apiKey, foodName);
+    });
+
+    ipcMain.handle('ai:generate-unit-conversions', async (event, foodName) => {
+        const apiKeyRow = await db.getAsync("SELECT value FROM settings WHERE key = 'googleApiKey'");
+        const apiKey = apiKeyRow?.value;
+        if (!apiKey) throw new Error("Kunci API Google AI belum diatur.");
+
+        log.info(`Meminta konversi satuan untuk: ${foodName}`);
+        const url = getAiApiUrl(apiKey);
+        const prompt = `
+            Tugas Anda HANYA mengidentifikasi konversi satuan masak umum untuk bahan makanan "${foodName}" ke dalam gram.
+            Patuhi aturan ini dengan ketat:
+            1.  Cari padanan gram untuk satuan umum (contoh: "siung" untuk bawang, "sdm" untuk kecap, "butir" untuk telur).
+            2.  Kembalikan sebagai OBJEK JSON. Kunci adalah nama satuan (string), nilai adalah padanannya dalam gram (angka).
+            3.  Jika tidak ada konversi yang umum atau relevan, kembalikan objek JSON kosong {}.
+            4.  JANGAN sertakan data lain (nutrisi, harga, dll). JANGAN bungkus output dalam markdown.
+
+            Contoh untuk "Bawang Putih": {"siung": 5}
+            Contoh untuk "Tepung Terigu": {"sdm": 10, "sdt": 3}
+            Contoh untuk "Dada Ayam": {}
+        `;
+        const payload = { contents: [{ parts: [{ text: prompt }] }] };
+        try {
+            const response = await axios.post(url, payload, { headers: { 'Content-Type': 'application/json' }, httpsAgent });
+            const text = response.data.candidates[0].content.parts[0].text.replace(/```json|```/g, '').trim();
+            const data = JSON.parse(text);
+            log.info('Respons konversi satuan AI berhasil di-parse:', data);
+            return data; // Mengembalikan objek JSON, bukan string
+        } catch (error) {
+            log.error('Error saat memanggil AI untuk konversi satuan:', error.message);
+            throw new Error("Gagal mengambil data konversi dari AI.");
+        }
     });
     
     ipcMain.handle('ai:test-connection', async (event) => {

@@ -1,5 +1,5 @@
 // Lokasi file: public/preload.js
-// Deskripsi: API yang diekspos untuk impor teks telah dihapus.
+// Deskripsi: Menambahkan 'generateUnitConversions' ke API yang diekspos.
 
 const { contextBridge, ipcRenderer } = require('electron');
 
@@ -32,16 +32,11 @@ contextBridge.exposeInMainWorld('api', {
     updateIngredientOrder: (orderedIngredients) => ipcRenderer.invoke('db:update-ingredient-order', orderedIngredients),
     updateIngredient: (data) => ipcRenderer.invoke('db:update-ingredient', data),
     getGroundedFoodData: (foodName) => ipcRenderer.invoke('ai:get-grounded-food-data', foodName),
+    // --- BARU: Fungsi untuk generate konversi satuan ---
+    generateUnitConversions: (foodName) => ipcRenderer.invoke('ai:generate-unit-conversions', foodName),
     testAIConnection: () => ipcRenderer.invoke('ai:test-connection'),
     suggestRecipeNames: (ingredients) => ipcRenderer.invoke('ai:suggest-recipe-names', ingredients),
     generateDescription: (data) => ipcRenderer.invoke('ai:generate-description', data),
     refineDescription: (description) => ipcRenderer.invoke('ai:refine-description', description),
     generateInstructions: (data) => ipcRenderer.invoke('ai:generate-instructions', data),
-    
-    // --- DIHAPUS: Fungsionalitas yang terkait dengan impor teks ---
-    // analyzeIngredientsText: (ingredientLines) => ipcRenderer.invoke('ai:analyze-ingredients-text', ingredientLines),
-    // processUnknownIngredients: (ingredientNames) => ipcRenderer.invoke('ai:process-unknown-ingredients', ingredientNames),
-    // onAiProcessStatus: (callback) => ipcRenderer.on('ai-process-status', (_event, value) => callback(value)),
-    // removeAiProcessStatusListener: () => ipcRenderer.removeAllListeners('ai-process-status'),
-    // draftIngredients: (data) => ipcRenderer.invoke('ai:draft-ingredients', data),
 });

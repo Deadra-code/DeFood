@@ -1,5 +1,6 @@
-// Lokasi file: src/features/Recipes/RecipeDetailView.js
-// Deskripsi: Menggunakan setIsDirty dari UIStateContext, bukan dari props.
+// Lokasi file: src/features/Recipes/RecipeDetailView.jsx
+// Deskripsi: (DIPERBARUI) Mengintegrasikan logika dari InstructionsEditor secara langsung
+//            untuk memindahkan tombol "Edit Instruksi" ke sebelah kanan judul.
 
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { AlertDialog, AlertDialogContent, AlertDialogHeader, AlertDialogTitle, AlertDialogDescription, AlertDialogFooter, AlertDialogCancel, AlertDialogAction } from '../../components/ui/alert-dialog';
@@ -9,7 +10,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '../../components/ui/ca
 import { Input } from '../../components/ui/input';
 import { Label } from '../../components/ui/label';
 import { Textarea } from '../../components/ui/textarea';
-import { Loader2, AlertCircle } from 'lucide-react';
+import { Loader2, AlertCircle, GripVertical, Trash2, PlusCircle } from 'lucide-react';
 import { useNotifier } from '../../hooks/useNotifier';
 import * as api from '../../api/electronAPI';
 import { useRecipeContext } from '../../context/RecipeContext';
@@ -21,19 +22,35 @@ import 'jspdf-autotable';
 import { isEqual, cloneDeep } from 'lodash';
 import { toast } from 'react-hot-toast';
 import UndoToast from '../../components/ui/UndoToast';
+import { DragDropContext, Droppable, Draggable } from '@hello-pangea/dnd';
+import { cn } from '../../lib/utils';
 
 import { RecipeHeader } from './components/RecipeDetail/RecipeHeader';
 import { RecipeAnalysis } from './components/RecipeDetail/RecipeAnalysis';
 import { RecipeIngredientsTable } from './components/RecipeDetail/RecipeIngredientsTable';
 import { AiButton } from './components/RecipeDetail/AiButton';
 import AddIngredientDialog from './components/AddIngredientDialog';
-import { InstructionsEditor } from './components/RecipeDetail/InstructionsEditor';
+// HAPUS: import { InstructionsEditor } from './components/RecipeDetail/InstructionsEditor';
+import { RecipeScalerDialog } from './components/RecipeDetail/RecipeScalerDialog';
 
-// HAPUS: prop setIsDirty
+// --- BARU: Logika dari InstructionsEditor dipindahkan ke sini ---
+const parseInstructions = (text) => {
+    if (!text || typeof text !== 'string') return [];
+    return text.split(/\n?\d+\.\s?/).filter(step => step.trim() !== '').map((stepText, index) => ({
+        id: `step-${index}-${Date.now()}`,
+        text: stepText.trim(),
+    }));
+};
+
+const joinInstructions = (steps) => {
+    return steps.map((step, index) => `${index + 1}. ${step.text}`).join('\n');
+};
+// --- AKHIR DARI LOGIKA YANG DIPINDAHKAN ---
+
 export default function RecipeDetailView({ recipe, onRecipeDeleted, onRecipeUpdated }) {
     const { notify } = useNotifier();
     const { duplicateRecipe, updateRecipe } = useRecipeContext();
-    const { setFoodToEdit, setIsDirty } = useUIStateContext(); // BARU: dapatkan setIsDirty dari konteks
+    const { setFoodToEdit, setIsDirty } = useUIStateContext();
     const { foods, updateCounter } = useFoodContext();
     
     const [editableRecipe, setEditableRecipe] = useState(null);
@@ -50,12 +67,18 @@ export default function RecipeDetailView({ recipe, onRecipeDeleted, onRecipeUpda
     
     const [lastDeletedIngredient, setLastDeletedIngredient] = useState(null);
 
+    const [isScalerOpen, setIsScalerOpen] = useState(false);
+
+    // --- BARU: State untuk editor instruksi ---
+    const [isEditingInstructions, setIsEditingInstructions] = useState(false);
+    const [instructionSteps, setInstructionSteps] = useState([]);
+    // --- AKHIR DARI STATE BARU ---
+
     const isDirtyMemo = useMemo(() => {
         if (!initialRecipe || !editableRecipe) return false;
         return !isEqual(initialRecipe, editableRecipe);
     }, [initialRecipe, editableRecipe]);
 
-    // BARU: Gunakan useEffect untuk menyinkronkan isDirtyMemo lokal dengan state global
     useEffect(() => {
         setIsDirty(isDirtyMemo);
     }, [isDirtyMemo, setIsDirty]);
@@ -74,6 +97,8 @@ export default function RecipeDetailView({ recipe, onRecipeDeleted, onRecipeUpda
             const fullRecipeData = { ...recipe, servings: recipe.servings || 1, ingredients: ingredientList || [] };
             setEditableRecipe(cloneDeep(fullRecipeData));
             setInitialRecipe(cloneDeep(fullRecipeData));
+            // --- BARU: Inisialisasi state instruksi ---
+            setInstructionSteps(parseInstructions(fullRecipeData.instructions || ''));
         } catch (err) {
             notify.error("Gagal memuat data resep lengkap.");
         } finally {
@@ -102,14 +127,39 @@ export default function RecipeDetailView({ recipe, onRecipeDeleted, onRecipeUpda
         if (needsSync) {
             setEditableRecipe(prevRecipe => ({ ...prevRecipe, ingredients: newIngredients }));
         }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [updateCounter, foods]); 
+    }, [updateCounter, foods, editableRecipe]); 
 
     const handleDataChange = (field, value) => {
         const isNumericField = ['cost_operational_recipe', 'cost_labor_recipe', 'margin_percent', 'servings'].includes(field);
         const processedValue = isNumericField ? parseFloat(value) || 0 : value;
         setEditableRecipe(prev => ({ ...prev, [field]: processedValue }));
     };
+
+    // --- BARU: Handler untuk editor instruksi ---
+    const handleInstructionChange = (newSteps) => {
+        setInstructionSteps(newSteps);
+        handleDataChange('instructions', joinInstructions(newSteps));
+    };
+    const handleInstructionDragEnd = (result) => {
+        if (!result.destination) return;
+        const items = Array.from(instructionSteps);
+        const [reorderedItem] = items.splice(result.source.index, 1);
+        items.splice(result.destination.index, 0, reorderedItem);
+        handleInstructionChange(items);
+    };
+    const handleInstructionTextChange = (id, newText) => {
+        const newSteps = instructionSteps.map(step => (step.id === id ? { ...step, text: newText } : step));
+        handleInstructionChange(newSteps);
+    };
+    const addInstructionStep = () => {
+        const newStep = { id: `step-${instructionSteps.length}-${Date.now()}`, text: '' };
+        handleInstructionChange([...instructionSteps, newStep]);
+    };
+    const deleteInstructionStep = (idToDelete) => {
+        const newSteps = instructionSteps.filter(step => step.id !== idToDelete);
+        handleInstructionChange(newSteps);
+    };
+    // --- AKHIR DARI HANDLER BARU ---
 
     const handleIngredientsChange = (newIngredients) => {
         if (Array.isArray(newIngredients)) {
@@ -133,7 +183,6 @@ export default function RecipeDetailView({ recipe, onRecipeDeleted, onRecipeUpda
         }
     };
 
-    // ... (sisa fungsi tetap sama) ...
     const handleDeleteRecipe = async () => {
         try {
             await api.deleteRecipe(recipe.id);
@@ -234,6 +283,9 @@ export default function RecipeDetailView({ recipe, onRecipeDeleted, onRecipeUpda
                 setIsSuggestionPopoverOpen(true);
             } else {
                 handleDataChange(field, result);
+                 if (field === 'instructions') {
+                    setInstructionSteps(parseInstructions(result));
+                }
                 notify.success(`AI berhasil memperbarui ${field}.`);
             }
         } catch (err) {
@@ -264,7 +316,39 @@ export default function RecipeDetailView({ recipe, onRecipeDeleted, onRecipeUpda
                 handleDuplicateRecipe={handleDuplicateRecipe}
                 setIsDeleteDialogOpen={setIsDeleteDialogOpen}
                 handleExportPDF={handleExportPDF}
+                onOpenScaler={() => setIsScalerOpen(true)}
             />
+            
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-8 items-start">
+                <div className="md:col-span-2">
+                    <div className="flex items-center gap-2 mb-2">
+                        <Label htmlFor="recipe-desc" className="text-lg font-semibold">Deskripsi</Label>
+                        <AiButton 
+                            onClick={() => handleAiAction(api.generateDescription, 'description', { recipeName: editableRecipe.name, ingredients: editableRecipe.ingredients })} 
+                            isLoading={aiLoading.description} 
+                            tooltipContent={editableRecipe.description ? "Sempurnakan deskripsi" : "Buat draf deskripsi"} 
+                        />
+                    </div>
+                    <Textarea 
+                        id="recipe-desc" 
+                        value={editableRecipe.description || ''} 
+                        onChange={e => handleDataChange('description', e.target.value)} 
+                        placeholder="Deskripsi singkat tentang resep ini..."
+                        rows={5}
+                    />
+                </div>
+                <div className="md:col-span-1">
+                    <Label htmlFor="servings" className="text-lg font-semibold">Resep ini untuk berapa porsi?</Label>
+                    <Input 
+                        id="servings" 
+                        type="number" 
+                        min="1" 
+                        value={editableRecipe.servings || 1} 
+                        onChange={(e) => handleDataChange('servings', e.target.value)} 
+                        className="mt-2 w-24" 
+                    />
+                </div>
+            </div>
 
             {calculationErrors.length > 0 && <Alert variant="destructive"><AlertCircle className="h-4 w-4" /><AlertTitle>Peringatan Akurasi Kalkulasi</AlertTitle><AlertDescription><ul className="list-disc pl-5">{calculationErrors.map((error, index) => (<li key={index}>{error}</li>))}</ul></AlertDescription></Alert>}
             
@@ -279,49 +363,118 @@ export default function RecipeDetailView({ recipe, onRecipeDeleted, onRecipeUpda
                 onCostChange={handleDataChange}
             />
             
-            <div>
-                <Label htmlFor="servings" className="text-lg font-semibold">Resep ini untuk berapa porsi?</Label>
-                <Input 
-                    id="servings" 
-                    type="number" 
-                    min="1" 
-                    value={editableRecipe.servings || 1} 
-                    onChange={(e) => handleDataChange('servings', e.target.value)} 
-                    className="mt-2 w-24" 
-                />
-            </div>
-            
-            <div>
-                <div className="flex items-center gap-2 mb-2"><Label htmlFor="recipe-desc" className="text-lg font-semibold">Deskripsi</Label><AiButton onClick={() => handleAiAction(api.generateDescription, 'description', { recipeName: editableRecipe.name, ingredients: editableRecipe.ingredients })} isLoading={aiLoading.description} tooltipContent={editableRecipe.description ? "Sempurnakan deskripsi" : "Buat draf deskripsi"} /></div>
-                <Textarea id="recipe-desc" value={editableRecipe.description || ''} onChange={e => handleDataChange('description', e.target.value)} placeholder="Deskripsi singkat tentang resep ini..." />
-            </div>
-            
-            <Card>
-                <CardHeader>
-                    <div className="flex justify-between items-center">
-                        <CardTitle className="text-lg">Bahan-bahan</CardTitle>
-                        <AddIngredientDialog recipeId={editableRecipe.id} onIngredientAdded={fetchAndSetRecipeData} />
-                    </div>
-                </CardHeader>
-                <CardContent>
-                    <RecipeIngredientsTable 
-                        ingredients={editableRecipe.ingredients || []}
-                        setIngredients={handleIngredientsChange} 
-                        handleOnDragEnd={handleOnDragEnd} 
-                        deleteIngredient={deleteIngredient} 
-                        handleUpdateIngredient={handleUpdateIngredient} 
-                        handleEditIngredientFood={handleEditIngredientFood} 
-                        handleBulkDeleteIngredients={handleBulkDeleteIngredients} 
-                    />
-                </CardContent>
-            </Card>
+            <div className="grid grid-cols-1 xl:grid-cols-2 gap-8 items-start">
+                <Card className="xl:col-span-1">
+                    <CardHeader>
+                        <div className="flex justify-between items-center">
+                            <CardTitle className="text-lg">Bahan-bahan</CardTitle>
+                            <AddIngredientDialog recipeId={editableRecipe.id} onIngredientAdded={fetchAndSetRecipeData} />
+                        </div>
+                    </CardHeader>
+                    <CardContent>
+                        <RecipeIngredientsTable 
+                            ingredients={editableRecipe.ingredients || []}
+                            setIngredients={handleIngredientsChange} 
+                            handleOnDragEnd={handleOnDragEnd} 
+                            deleteIngredient={deleteIngredient} 
+                            handleUpdateIngredient={handleUpdateIngredient} 
+                            handleEditIngredientFood={handleEditIngredientFood} 
+                            handleBulkDeleteIngredients={handleBulkDeleteIngredients} 
+                        />
+                    </CardContent>
+                </Card>
 
-            <div>
-                <div className="flex items-center gap-2 mb-4"><h2 className="text-lg font-semibold">Instruksi</h2><AiButton onClick={() => handleAiAction(api.generateInstructions, 'instructions', { recipeName: editableRecipe.name, ingredients: editableRecipe.ingredients })} isLoading={aiLoading.instructions} tooltipContent="Buat draf instruksi dengan AI" /></div>
-                <InstructionsEditor initialValue={editableRecipe.instructions || ''} onChange={(newInstructions) => handleDataChange('instructions', newInstructions)} />
+                <div className="xl:col-span-1">
+                    {/* PERBAIKAN: Tata letak header instruksi diubah di sini */}
+                    <div className="flex justify-between items-center gap-2 mb-4">
+                        <div className="flex items-center gap-2">
+                            <h2 className="text-lg font-semibold">Instruksi</h2>
+                            <AiButton 
+                                onClick={() => handleAiAction(api.generateInstructions, 'instructions', { recipeName: editableRecipe.name, ingredients: editableRecipe.ingredients })} 
+                                isLoading={aiLoading.instructions} 
+                                tooltipContent="Buat draf instruksi dengan AI" 
+                            />
+                        </div>
+                        {!isEditingInstructions && (
+                            <Button variant="outline" onClick={() => setIsEditingInstructions(true)}>Edit Instruksi</Button>
+                        )}
+                    </div>
+                    
+                    {/* PERBAIKAN: JSX dari InstructionsEditor sekarang dirender di sini */}
+                    {!isEditingInstructions ? (
+                        <div className="space-y-2">
+                            {instructionSteps.length > 0 ? (
+                                <div className="prose prose-sm dark:prose-invert max-w-none">
+                                    <ol>
+                                        {instructionSteps.map((step) => (
+                                            <li key={step.id}>{step.text}</li>
+                                        ))}
+                                    </ol>
+                                </div>
+                            ) : (
+                                <p className="text-muted-foreground italic">Belum ada instruksi.</p>
+                            )}
+                        </div>
+                    ) : (
+                         <Card className="p-4 bg-muted/30">
+                            <CardContent className="p-0">
+                                <DragDropContext onDragEnd={handleInstructionDragEnd}>
+                                    <Droppable droppableId="instructions">
+                                        {(provided) => (
+                                            <div {...provided.droppableProps} ref={provided.innerRef} className="space-y-3">
+                                                {instructionSteps.map((step, index) => (
+                                                    <Draggable key={step.id} draggableId={step.id} index={index}>
+                                                        {(provided, snapshot) => (
+                                                            <div
+                                                                ref={provided.innerRef}
+                                                                {...provided.draggableProps}
+                                                                className={cn(
+                                                                    "flex items-start gap-2 p-2 rounded-lg bg-background border",
+                                                                    snapshot.isDragging && "shadow-lg"
+                                                                )}
+                                                            >
+                                                                <div {...provided.dragHandleProps} className="pt-2 cursor-grab">
+                                                                    <GripVertical className="h-5 w-5 text-muted-foreground" />
+                                                                </div>
+                                                                <span className="font-semibold text-lg pt-1">{index + 1}.</span>
+                                                                <Textarea
+                                                                    value={step.text}
+                                                                    onChange={(e) => handleInstructionTextChange(step.id, e.target.value)}
+                                                                    placeholder="Tulis langkah di sini..."
+                                                                    rows={2}
+                                                                    className="flex-1"
+                                                                />
+                                                                <Button variant="ghost" size="icon" onClick={() => deleteInstructionStep(step.id)} className="text-destructive hover:text-destructive">
+                                                                    <Trash2 className="h-4 w-4" />
+                                                                </Button>
+                                                            </div>
+                                                        )}
+                                                    </Draggable>
+                                                ))}
+                                                {provided.placeholder}
+                                            </div>
+                                        )}
+                                    </Droppable>
+                                </DragDropContext>
+                                <div className="flex justify-between items-center mt-4">
+                                    <Button variant="outline" size="sm" onClick={addInstructionStep}>
+                                        <PlusCircle className="mr-2 h-4 w-4" /> Tambah Langkah
+                                    </Button>
+                                    <Button variant="secondary" onClick={() => setIsEditingInstructions(false)}>Selesai Mengedit</Button>
+                                </div>
+                            </CardContent>
+                        </Card>
+                    )}
+                </div>
             </div>
             
             <AlertDialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}><AlertDialogContent><AlertDialogHeader><AlertDialogTitle>Anda yakin ingin menghapus resep ini?</AlertDialogTitle><AlertDialogDescription>Resep "{editableRecipe.name}" akan dihapus secara permanen. Aksi ini tidak dapat dibatalkan.</AlertDialogDescription></AlertDialogHeader><AlertDialogFooter><AlertDialogCancel>Batal</AlertDialogCancel><AlertDialogAction asChild><Button variant="destructive" onClick={handleDeleteRecipe}>Hapus</Button></AlertDialogAction></AlertDialogFooter></AlertDialogContent></AlertDialog>
+            
+            <RecipeScalerDialog
+                isOpen={isScalerOpen}
+                onOpenChange={setIsScalerOpen}
+                recipe={editableRecipe}
+            />
         </div>
     );
 }

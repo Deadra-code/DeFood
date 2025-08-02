@@ -1,5 +1,5 @@
 // Lokasi file: src/lib/schemas.js
-// Deskripsi: Menambahkan validasi untuk kolom 'category' di sisi frontend.
+// Deskripsi: Menambahkan validasi untuk kolom 'unit_conversions' di sisi frontend.
 
 import { z } from 'zod';
 
@@ -33,8 +33,11 @@ export const foodSchema = z.object({
     z.number({ required_error: "Harga wajib diisi.", invalid_type_error: "Harga harus berupa angka."}).min(0)
   ),
   
-  // Kolom baru untuk kategori, opsional
   category: z.string().optional().nullable(),
+
+  // --- PERBAIKAN: Menambahkan field unit_conversions ke skema ---
+  // Ini akan memastikan data konversi tidak dihapus saat validasi.
+  unit_conversions: z.string().optional().nullable(),
 
   isNew: z.boolean().optional()
 });

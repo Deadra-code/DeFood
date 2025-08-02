@@ -1,5 +1,5 @@
 // Lokasi file: src/api/electronAPI.js
-// Deskripsi: Fungsi yang terkait dengan impor teks telah dihapus.
+// Deskripsi: Menambahkan fungsi pembungkus 'generateUnitConversions'.
 
 const isApiReady = () => {
     if (window.api) return true;
@@ -18,6 +18,8 @@ export const onUpdateStatus = (callback) => isApiReady() ? window.api.onUpdateSt
 export const getSettings = () => isApiReady() ? window.api.getSettings() : Promise.reject(new Error("API belum siap"));
 export const saveSettings = (settings) => isApiReady() ? window.api.saveSettings(settings) : Promise.reject(new Error("API belum siap"));
 export const getGroundedFoodData = (foodName) => isApiReady() ? window.api.getGroundedFoodData(foodName) : Promise.reject(new Error("API belum siap"));
+// --- BARU: Fungsi untuk generate konversi satuan ---
+export const generateUnitConversions = (foodName) => isApiReady() ? window.api.generateUnitConversions(foodName) : Promise.reject(new Error("API belum siap"));
 export const testAIConnection = () => isApiReady() ? window.api.testAIConnection() : Promise.reject(new Error("API belum siap"));
 export const suggestRecipeNames = (ingredients) => isApiReady() ? window.api.suggestRecipeNames(ingredients) : Promise.reject(new Error("API belum siap"));
 export const generateDescription = (data) => isApiReady() ? window.api.generateDescription(data) : Promise.reject(new Error("API belum siap"));
@@ -39,10 +41,3 @@ export const deleteIngredientFromRecipe = (id) => isApiReady() ? window.api.dele
 export const deleteIngredientsBulk = (ids) => isApiReady() ? window.api.deleteIngredientsBulk(ids) : Promise.reject(new Error("API belum siap"));
 export const updateIngredientOrder = (orderedIngredients) => isApiReady() ? window.api.updateIngredientOrder(orderedIngredients) : Promise.reject(new Error("API belum siap"));
 export const updateIngredient = (data) => isApiReady() ? window.api.updateIngredient(data) : Promise.reject(new Error("API belum siap"));
-
-// --- DIHAPUS: Fungsionalitas yang terkait dengan impor teks ---
-// export const processUnknownIngredients = (ingredientNames) => isApiReady() ? window.api.processUnknownIngredients(ingredientNames) : Promise.reject(new Error("API belum siap"));
-// export const onAiProcessStatus = (callback) => isApiReady() ? window.api.onAiProcessStatus(callback) : () => {};
-// export const removeAiProcessStatusListener = () => isApiReady() ? window.api.removeAiProcessStatusListener() : () => {};
-// export const analyzeIngredientsText = (ingredientLines) => isApiReady() ? window.api.analyzeIngredientsText(ingredientLines) : Promise.reject(new Error("API belum siap"));
-// export const draftIngredients = (data) => isApiReady() ? window.api.draftIngredients(data) : Promise.reject(new Error("API belum siap"));
