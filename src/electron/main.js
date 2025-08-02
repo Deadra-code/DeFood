@@ -1,6 +1,8 @@
 // Lokasi file: src/electron/main.js
-// Deskripsi: Memindahkan logika penutupan database ke event 'will-quit'
-//            dan menunggunya selesai sebelum aplikasi benar-benar berhenti.
+// Deskripsi: File utama proses main Electron, disesuaikan untuk Vite.
+// - Mode Pengembangan: Memuat konten dari server pengembangan Vite.
+// - Mode Produksi: Memuat file statis dari direktori 'dist'.
+// - Menangani semua siklus hidup aplikasi dan IPC.
 
 const { app, dialog, BrowserWindow, ipcMain, Menu, shell } = require('electron');
 const path = require('path');
@@ -11,9 +13,17 @@ const { initializeDatabase, getDbInstance, closeDatabase } = require('./database
 const { registerIpcHandlers } = require('./ipcHandlers');
 const dns = require('dns');
 
-// ... (Konfigurasi Jaringan, Logging, dan process.on('uncaughtException') tetap sama) ...
+// --- SOLUSI: Mengatur nama aplikasi secara eksplisit ---
+// Baris ini akan membuat Electron menggunakan "DeFood" sebagai nama folder data
+// di C:\Users\HP\AppData\Roaming\DeFood
+app.setName('DeFood');
+
+// --- Konfigurasi Jaringan & Logging ---
+// Mengutamakan IPv4 untuk mengatasi masalah jaringan tertentu.
 dns.setDefaultResultOrder('ipv4first');
+// Menonaktifkan penolakan sertifikat TLS yang tidak sah (gunakan dengan hati-hati).
 process.env.NODE_TLS_REJECT_UNAUTHORIZED = '0';
+// Mengatur path untuk file log utama dan renderer.
 log.transports.file.resolvePathFn = () => path.join(app.getPath('userData'), 'logs/main.log');
 log.transports.file.level = 'info';
 Object.assign(console, log.functions);
@@ -21,6 +31,9 @@ autoUpdater.logger = log;
 const rendererLogger = log.create({ logId: 'rendererLogger' });
 rendererLogger.transports.file.resolvePathFn = () => path.join(app.getPath('userData'), 'logs/renderer.log');
 rendererLogger.transports.file.level = 'error';
+
+// --- Penanganan Error Global ---
+// Menangkap semua error yang tidak tertangani untuk mencegah crash.
 process.on('uncaughtException', (error) => {
     log.error('Uncaught Exception:', error);
     dialog.showErrorBox('Kesalahan Fatal', 'Aplikasi mengalami kesalahan yang tidak terduga. Silakan periksa file log untuk detailnya.');
@@ -31,49 +44,62 @@ process.on('uncaughtException', (error) => {
 let mainWindow;
 
 function createWindow() {
-    // ... (Fungsi createWindow tetap sama) ...
+    // Membuat jendela browser utama.
     mainWindow = new BrowserWindow({
         width: 1280,
         height: 800,
-        frame: false,
+        frame: false, // Jendela tanpa bingkai standar (frameless).
         webPreferences: {
+            // Menjalankan skrip preload untuk mengekspos API ke proses renderer.
             preload: path.join(__dirname, '../../public/preload.js'),
-            nodeIntegration: false,
-            contextIsolation: true,
+            nodeIntegration: false, // Penting untuk keamanan.
+            contextIsolation: true, // Penting untuk keamanan.
         },
         icon: path.join(__dirname, '../../public/favicon.ico'),
-        show: false
+        show: false // Jendela disembunyikan saat dibuat, ditampilkan saat siap.
     });
 
-    const startUrl = isDev
-        ? 'http://localhost:3000'
-        : `file://${path.join(__dirname, '../../build/index.html')}`;
+    // --- PERUBAHAN LOGIKA UNTUK VITE ---
+    const VITE_DEV_SERVER_URL = 'http://localhost:5173';
 
+    // Menentukan URL yang akan dimuat berdasarkan lingkungan (dev/prod).
+    const startUrl = isDev
+        // Jika dalam mode pengembangan, load dari server Vite.
+        ? VITE_DEV_SERVER_URL
+        // Jika dalam mode produksi, load dari file hasil build Vite.
+        : `file://${path.join(__dirname, '../../dist/index.html')}`;
+        
     mainWindow.loadURL(startUrl);
 
+    // Menampilkan jendela setelah konten siap untuk ditampilkan.
     mainWindow.once('ready-to-show', () => {
         mainWindow.maximize();
         mainWindow.show();
+        // Cek pembaruan hanya di mode produksi.
         if (!isDev) {
             autoUpdater.checkForUpdatesAndNotify();
         }
     });
 
+    // Buka DevTools hanya di mode pengembangan.
     if (isDev) {
         mainWindow.webContents.openDevTools({ mode: 'detach' });
     }
 }
 
+// Menghapus menu aplikasi default.
 Menu.setApplicationMenu(null);
 
 log.info('Aplikasi dimulai...');
 
+// --- Siklus Hidup Aplikasi: 'ready' ---
 app.whenReady().then(async () => {
-    // ... (Isi app.whenReady tetap sama) ...
     try {
+        // Inisialisasi database sebelum membuat jendela.
         await initializeDatabase();
         const db = getDbInstance();
         
+        // --- Registrasi Handler Kontrol Jendela & Aplikasi ---
         ipcMain.on('app:minimize', () => mainWindow.minimize());
         ipcMain.on('app:maximize', () => {
             if (mainWindow.isMaximized()) {
@@ -93,8 +119,10 @@ app.whenReady().then(async () => {
         });
         ipcMain.on('app:quit', () => app.quit());
 
+        // Mendaftarkan semua IPC handler lainnya (untuk database, AI, dll.).
         registerIpcHandlers(db);
         
+        // Handler untuk mencatat error dari proses renderer.
         ipcMain.on('log-error-to-main', (event, error) => {
             rendererLogger.error('Error dari renderer:', error);
         });
@@ -107,7 +135,7 @@ app.whenReady().then(async () => {
     }
 });
 
-// ... (Handler autoUpdater tetap sama) ...
+// --- Handler untuk Auto Updater ---
 autoUpdater.on('update-available', () => {
     log.info('Pembaruan tersedia.');
     mainWindow.webContents.send('update-status', 'Pembaruan tersedia!');
@@ -143,14 +171,16 @@ autoUpdater.on('error', (err) => {
 });
 
 
+// --- Siklus Hidup Aplikasi: Penutupan & Aktivasi ---
 app.on('window-all-closed', () => {
-    // HAPUS: closeDatabase() dipindahkan dari sini.
+    // Di macOS, aplikasi tetap aktif meskipun semua jendela ditutup.
     if (process.platform !== 'darwin') {
         app.quit();
     }
 });
 
 app.on('activate', () => {
+    // Di macOS, buat kembali jendela jika di-klik di dock dan tidak ada jendela lain.
     if (BrowserWindow.getAllWindows().length === 0) {
         createWindow();
     }
@@ -159,16 +189,16 @@ app.on('activate', () => {
 // --- PERBAIKAN KRITIS: Menangani penutupan DB di event 'will-quit' ---
 app.on('will-quit', async (event) => {
     log.info('Aplikasi akan ditutup. Menutup koneksi database...');
-    // Mencegah aplikasi langsung keluar
+    // Mencegah aplikasi langsung keluar untuk memberi waktu pada operasi asinkron.
     event.preventDefault(); 
     try {
         await closeDatabase();
         log.info('Database ditutup, aplikasi akan keluar sekarang.');
-        // Keluar dari aplikasi setelah database berhasil ditutup
+        // Keluar dari aplikasi setelah database berhasil ditutup.
         app.exit();
     } catch (err) {
         log.error('Error saat menutup database sebelum keluar:', err);
-        // Tetap keluar meskipun ada error
+        // Tetap keluar meskipun ada error.
         app.exit();
     }
 });
