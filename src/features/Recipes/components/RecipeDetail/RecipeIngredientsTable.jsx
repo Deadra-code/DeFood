@@ -1,10 +1,9 @@
 // Lokasi file: src/features/Recipes/components/RecipeDetail/RecipeIngredientsTable.jsx
-// Deskripsi: (PERBAIKAN FINAL) Mengganti komponen <Table> dengan elemen <table> standar
-//            untuk mengatasi konflik overflow dan memastikan header tabel benar-benar "sticky".
+// Deskripsi: (REFAKTOR) Mengimplementasikan pengeditan kuantitas inline yang selalu aktif dengan debounce.
 
 import React, { useState, useEffect } from 'react';
 import { DragDropContext, Droppable, Draggable } from '@hello-pangea/dnd';
-import { TableBody, TableCell, TableRow, TableHead, TableHeader } from '../../../../components/ui/table'; // PERBAIKAN: Hapus impor 'Table'
+import { TableBody, TableCell, TableRow, TableHead, TableHeader } from '../../../../components/ui/table';
 import { Button } from '../../../../components/ui/button';
 import { Input } from '../../../../components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../../../../components/ui/select';
@@ -13,10 +12,48 @@ import { GripVertical, Trash2, Edit } from 'lucide-react';
 import { cn } from '../../../../lib/utils';
 import { Checkbox } from '../../../../components/ui/checkbox';
 import { AlertDialog, AlertDialogContent, AlertDialogHeader, AlertDialogTitle, AlertDialogDescription, AlertDialogFooter, AlertDialogCancel, AlertDialogAction } from '../../../../components/ui/alert-dialog';
+import { useDebounce } from '../../../../hooks/useDebounce';
 
 const formatCurrency = (value) => {
     return new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', minimumFractionDigits: 0 }).format(value || 0);
 };
+
+// Komponen baru untuk input kuantitas dengan debounce
+const DebouncedQuantityInput = ({ ingredient, onUpdate }) => {
+    const [quantity, setQuantity] = useState(ingredient.quantity);
+    const debouncedQuantity = useDebounce(quantity, 500); // Tunda 500ms
+
+    // Update state lokal saat prop berubah (misalnya, saat undo)
+    useEffect(() => {
+        setQuantity(ingredient.quantity);
+    }, [ingredient.quantity]);
+
+    // Kirim pembaruan saat nilai debounced berubah & berbeda dari nilai asli
+    useEffect(() => {
+        const numericDebounced = parseFloat(debouncedQuantity);
+        if (!isNaN(numericDebounced) && numericDebounced >= 0 && numericDebounced !== ingredient.quantity) {
+            onUpdate(ingredient.id, numericDebounced, ingredient.unit);
+        }
+    }, [debouncedQuantity, ingredient, onUpdate]);
+
+    const handleChange = (e) => {
+        const value = e.target.value;
+        // Izinkan input kosong atau angka positif
+        if (value === '' || (Number(value) >= 0 && !isNaN(Number(value)))) {
+            setQuantity(value);
+        }
+    };
+
+    return (
+        <Input
+            type="number"
+            value={quantity}
+            onChange={handleChange}
+            className="h-8 w-20"
+        />
+    );
+};
+
 
 export const RecipeIngredientsTable = ({
     ingredients,
@@ -27,7 +64,6 @@ export const RecipeIngredientsTable = ({
     handleEditIngredientFood,
     handleBulkDeleteIngredients
 }) => {
-    const [editingIngredient, setEditingIngredient] = useState({ id: null, quantity: '', unit: '' });
     const [selectedIngredients, setSelectedIngredients] = useState(new Set());
     const [isConfirmDeleteDialogOpen, setIsConfirmDeleteDialogOpen] = useState(false);
 
@@ -59,21 +95,6 @@ export const RecipeIngredientsTable = ({
         setIsConfirmDeleteDialogOpen(false);
     };
 
-    const startEditing = (ing) => {
-        setEditingIngredient({ id: ing.id, quantity: ing.quantity, unit: ing.unit });
-    };
-
-    const finishEditing = () => {
-        if (!editingIngredient.id) return;
-        const newQuantity = parseFloat(editingIngredient.quantity);
-        if (isNaN(newQuantity) || newQuantity <= 0) {
-            setEditingIngredient({ id: null, quantity: '', unit: '' });
-            return;
-        }
-        handleUpdateIngredient(editingIngredient.id, newQuantity, editingIngredient.unit);
-        setEditingIngredient({ id: null, quantity: '', unit: '' });
-    };
-
     const handleUnitChangeForIngredient = (ingredientId, newUnit) => {
         const ingredient = ingredients.find(ing => ing.id === ingredientId);
         if (ingredient) {
@@ -98,7 +119,6 @@ export const RecipeIngredientsTable = ({
                 
                 <div className="rounded-md border">
                     <div className="relative max-h-[480px] overflow-y-auto">
-                        {/* PERBAIKAN: Menggunakan elemen <table> standar, bukan komponen <Table> */}
                         <table className="relative w-full caption-bottom text-sm">
                             <TableHeader className="sticky top-0 z-10 bg-card">
                                 <TableRow>
@@ -144,32 +164,16 @@ export const RecipeIngredientsTable = ({
                                                                 <div className="text-xs text-muted-foreground"> {ing.food.calories_kcal} kkal &bull; {formatCurrency(ing.food.price_per_100g)} / 100gr </div>
                                                             </TableCell>
                                                             <TableCell>
-                                                                {editingIngredient.id === ing.id ? (
-                                                                    <div className="flex items-center gap-2">
-                                                                        <Input
-                                                                            type="number"
-                                                                            value={editingIngredient.quantity}
-                                                                            onChange={(e) => setEditingIngredient(prev => ({ ...prev, quantity: e.target.value }))}
-                                                                            onBlur={finishEditing}
-                                                                            onKeyDown={(e) => { if (e.key === 'Enter') finishEditing(); }}
-                                                                            autoFocus
-                                                                            className="h-8 w-20"
-                                                                        />
-                                                                        <span className="text-sm text-muted-foreground">{editingIngredient.unit}</span>
-                                                                    </div>
-                                                                ) : (
-                                                                    <div className="flex items-center gap-2">
-                                                                        <div className="cursor-pointer rounded-md p-1 -m-1 hover:bg-muted min-w-[40px] text-left" onClick={() => startEditing(ing)}>
-                                                                            {ing.quantity}
-                                                                        </div>
-                                                                        <Select value={ing.unit} onValueChange={(newUnit) => handleUnitChangeForIngredient(ing.id, newUnit)}>
-                                                                            <SelectTrigger className="h-8 w-[100px]"><SelectValue /></SelectTrigger>
-                                                                            <SelectContent>
-                                                                                {availableUnits.map(unit => (<SelectItem key={unit} value={unit}>{unit}</SelectItem>))}
-                                                                            </SelectContent>
-                                                                        </Select>
-                                                                    </div>
-                                                                )}
+                                                                <div className="flex items-center gap-2">
+                                                                    {/* --- PENINGKATAN: Input selalu aktif dengan debounce --- */}
+                                                                    <DebouncedQuantityInput ingredient={ing} onUpdate={handleUpdateIngredient} />
+                                                                    <Select value={ing.unit} onValueChange={(newUnit) => handleUnitChangeForIngredient(ing.id, newUnit)}>
+                                                                        <SelectTrigger className="h-8 w-[100px]"><SelectValue /></SelectTrigger>
+                                                                        <SelectContent>
+                                                                            {availableUnits.map(unit => (<SelectItem key={unit} value={unit}>{unit}</SelectItem>))}
+                                                                        </SelectContent>
+                                                                    </Select>
+                                                                </div>
                                                             </TableCell>
                                                             <TableCell className="text-right">
                                                                 <div className="opacity-0 group-hover:opacity-100 transition-opacity flex justify-end items-center">

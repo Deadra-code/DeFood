@@ -1,6 +1,6 @@
 // Lokasi file: src/features/Recipes/components/CostAnalysisCard.jsx
-// Deskripsi: Menambahkan logika untuk menangani dan memformat input numerik
-//            agar tidak bisa diawali dengan angka nol yang tidak perlu (leading zeros).
+// Deskripsi: (DIPERBARUI) Menerapkan batasan nilai minimum 0 untuk input
+//            biaya operasional, tenaga kerja, dan margin.
 
 import React from 'react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '../../../components/ui/card';
@@ -15,7 +15,6 @@ import { Button } from '../../../components/ui/button';
 import { ScrollArea } from '../../../components/ui/scroll-area';
 import { cn } from '../../../lib/utils';
 
-// ... (fungsi formatCurrency dan convertToGrams tetap sama) ...
 const formatCurrency = (value) => {
     return new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', minimumFractionDigits: 0 }).format(value || 0);
 };
@@ -35,7 +34,6 @@ function convertToGrams(food, quantity, unit) {
 }
 
 const HppDetailsPopover = ({ ingredients = [], servings }) => {
-    // ... (isi komponen HppDetailsPopover tetap sama) ...
     const safeServings = servings > 0 ? servings : 1;
     const totalHpp = React.useMemo(() => {
         if (!Array.isArray(ingredients)) return 0;
@@ -60,14 +58,14 @@ const HppDetailsPopover = ({ ingredients = [], servings }) => {
                     <p className="text-sm text-muted-foreground">Biaya bahan baku dibagi dengan jumlah porsi.</p>
                 </div>
                 <ScrollArea className={cn("mt-4", ingredients.length > 5 ? "h-72" : "")}>
-                    <Table className="relative">{/*
-                     */}<TableHeader className="sticky top-0 bg-popover z-10">
+                    <Table className="relative">
+                        <TableHeader className="sticky top-0 bg-popover z-10">
                             <TableRow>
                                 <TableHead>Bahan</TableHead>
                                 <TableHead className="text-right">Biaya</TableHead>
                             </TableRow>
-                        </TableHeader>{/*
-                     */}<TableBody>
+                        </TableHeader>
+                        <TableBody>
                             {Array.isArray(ingredients) && ingredients.map(ing => {
                                 const quantityInGrams = convertToGrams(ing.food, ing.quantity, ing.unit);
                                 const multiplier = quantityInGrams / 100;
@@ -80,14 +78,14 @@ const HppDetailsPopover = ({ ingredients = [], servings }) => {
                                     </TableRow>
                                 );
                             })}
-                        </TableBody>{/*
-                     */}<TableFooter className="sticky bottom-0 bg-popover z-10">
+                        </TableBody>
+                        <TableFooter className="sticky bottom-0 bg-popover z-10">
                             <TableRow className="bg-primary text-primary-foreground hover:bg-primary/90">
                                 <TableCell className="font-bold">Total</TableCell>
                                 <TableCell className="text-right font-bold">{formatCurrency(totalHpp)}</TableCell>
                             </TableRow>
-                        </TableFooter>{/*
-                 */}</Table>
+                        </TableFooter>
+                    </Table>
                 </ScrollArea>
             </PopoverContent>
         </Popover>
@@ -104,12 +102,17 @@ export default function CostAnalysisCard({
     margin,
     onCostChange,
 }) {
-    // --- PENINGKATAN UX: Fungsi untuk menangani input numerik ---
     const handleNumericInputChange = (field, value) => {
-        // Mengonversi nilai ke angka, menghilangkan leading zeros, lalu kembali ke string
-        // Jika input kosong atau hanya "0", biarkan seperti itu.
-        const parsedValue = value === '' ? '' : parseInt(value, 10).toString();
-        onCostChange(field, parsedValue);
+        // --- PERBAIKAN: Logika yang lebih kuat untuk mencegah nilai negatif ---
+        if (value === '') {
+            onCostChange(field, '');
+            return;
+        }
+        const numericValue = parseInt(value, 10);
+        if (isNaN(numericValue) || numericValue < 0) {
+            return; // Abaikan input yang tidak valid atau negatif
+        }
+        onCostChange(field, numericValue.toString());
     };
 
     const opCost = parseFloat(operationalCost) || 0;
@@ -138,8 +141,9 @@ export default function CostAnalysisCard({
                             <Label htmlFor="opCost-input">Biaya Operasional / Porsi</Label>
                             <Input 
                                 id="opCost-input" 
-                                type="number" 
-                                value={operationalCost} // Gunakan state asli untuk value
+                                type="number"
+                                min="0" // --- PERBAIKAN: Menambahkan atribut min ---
+                                value={operationalCost}
                                 onChange={e => handleNumericInputChange('cost_operational_recipe', e.target.value)} 
                                 className="w-28 h-8 text-right"
                             />
@@ -148,8 +152,9 @@ export default function CostAnalysisCard({
                             <Label htmlFor="laborCost-input">Biaya Tenaga Kerja / Porsi</Label>
                             <Input 
                                 id="laborCost-input" 
-                                type="number" 
-                                value={laborCost} // Gunakan state asli untuk value
+                                type="number"
+                                min="0" // --- PERBAIKAN: Menambahkan atribut min ---
+                                value={laborCost}
                                 onChange={e => handleNumericInputChange('cost_labor_recipe', e.target.value)} 
                                 className="w-28 h-8 text-right"
                             />
@@ -164,7 +169,8 @@ export default function CostAnalysisCard({
                             </Label>
                             <Input 
                                 id="margin-input" 
-                                type="number" 
+                                type="number"
+                                min="0" // --- PERBAIKAN: Menambahkan atribut min ---
                                 value={currentMargin} 
                                 onChange={e => handleNumericInputChange('margin_percent', e.target.value)} 
                                 className="w-20 h-8 text-right" 
@@ -179,7 +185,7 @@ export default function CostAnalysisCard({
                     </div>
                     <div className="space-y-2 text-sm">
                          <div className="flex justify-between"><span>Profit / Porsi</span> <span>{formatCurrency(profitPerPortion)}</span></div>
-                         <div className="flex justify-between items-center font-bold text-lg text-primary">
+                         <div className="flex justify-between items-center font-bold text-lg text-primary pt-2 mt-2">
                             <span>Rekomendasi Harga Jual</span> 
                             <span>{formatCurrency(roundedSellingPrice)}</span>
                         </div>

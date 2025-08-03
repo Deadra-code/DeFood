@@ -50,10 +50,9 @@ function createWindow() {
         height: 800,
         frame: false, // Jendela tanpa bingkai standar (frameless).
         webPreferences: {
-            // --- PERBAIKAN KRUSIAL ---
-            // Path ini sekarang menunjuk ke file preload.js yang akan kita pastikan
-            // berada di direktori yang sama dengan main.js setelah proses build.
-            preload: path.join(__dirname, 'preload.js'),
+            // --- PERBAIKAN KRUSIAL UNTUK DEVELOPMENT & PRODUKSI ---
+            // Menggunakan path yang benar tergantung pada lingkungannya.
+            preload: path.join(__dirname, isDev ? '../../public/preload.js' : 'preload.js'),
             nodeIntegration: false, // Penting untuk keamanan.
             contextIsolation: true, // Penting untuk keamanan.
         },

@@ -1,11 +1,15 @@
 // Lokasi file: src/features/FoodDatabase/components/FoodDatabaseHeader.jsx
-// Deskripsi: Komponen header untuk halaman database bahan.
+// Deskripsi: (DIPERBARUI) Impor untuk UnitCombobox sekarang menunjuk ke file
+//            komponen yang benar.
 
 import React from 'react';
 import { Button } from '../../../components/ui/button';
 import { Input } from '../../../components/ui/input';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuCheckboxItem, DropdownMenuLabel, DropdownMenuSeparator } from '../../../components/ui/dropdown-menu';
 import { PlusCircle, Search, LayoutGrid, List, Filter, ArrowUpDown, X } from 'lucide-react';
+import { UnitCombobox } from '../../../components/ui/UnitCombobox'; // --- PERBAIKAN: Impor dari lokasi baru ---
+
+const PREDEFINED_UNITS = ['gram', 'kg', 'ons', 'ml', 'l', 'sdm', 'sdt', 'butir', 'pcs', 'siung', 'buah', 'lembar', 'batang'];
 
 const FoodDatabaseHeader = ({
     viewMode,
@@ -13,18 +17,38 @@ const FoodDatabaseHeader = ({
     onAddNew,
     categories,
     filterProps,
-    sortProps
+    sortProps,
+    displayConversion,
+    onDisplayConversionChange,
 }) => {
     const { searchTerm, setSearchTerm, activeCategories, setActiveCategories, isFilterActive, handleResetFilters } = filterProps;
     const { sort, setSort, sortLabels } = sortProps;
 
     return (
-        <header className="flex-shrink-0 flex flex-col md:flex-row justify-between md:items-center gap-4 mb-6">
+        <header className="flex-shrink-0 flex flex-col gap-4 mb-6">
             <div>
                 <h1 className="text-3xl font-bold">Database Bahan</h1>
                 <p className="text-muted-foreground">Kelola semua bahan dan harganya di sini.</p>
             </div>
-            <div className="flex gap-2 w-full md:w-auto items-center">
+            <div className="flex flex-wrap items-center gap-2">
+                <div className="flex items-center gap-2 p-2 border rounded-lg bg-muted/50">
+                    <span className="text-sm font-medium mr-2">Tampilkan Data Per:</span>
+                    <Input
+                        type="number"
+                        min="1"
+                        value={displayConversion.amount}
+                        onChange={e => onDisplayConversionChange({ ...displayConversion, amount: Number(e.target.value) })}
+                        className="w-20 h-9"
+                    />
+                    <UnitCombobox
+                        value={displayConversion.unit}
+                        onChange={value => onDisplayConversionChange({ ...displayConversion, unit: value })}
+                        options={PREDEFINED_UNITS}
+                    />
+                </div>
+                
+                <div className="flex-grow" /> {/* Spacer */}
+
                 <DropdownMenu>
                     <DropdownMenuTrigger asChild>
                         <Button variant="outline"><Filter className="h-4 w-4 mr-2" /> Filter</Button>
@@ -66,7 +90,7 @@ const FoodDatabaseHeader = ({
                     <Button variant={viewMode === 'grid' ? 'secondary' : 'ghost'} size="icon" onClick={() => onViewModeChange('grid')}><LayoutGrid className="h-4 w-4" /></Button>
                     <Button variant={viewMode === 'table' ? 'secondary' : 'ghost'} size="icon" onClick={() => onViewModeChange('table')}><List className="h-4 w-4" /></Button>
                 </div>
-                <div className="relative flex-grow md:flex-grow-0">
+                <div className="relative">
                     <Search className="absolute left-2.5 top-3 h-4 w-4 text-muted-foreground" />
                     <Input type="search" placeholder="Cari bahan..." className="pl-8 w-full md:w-[200px]" value={searchTerm} onChange={e => setSearchTerm(e.target.value)} />
                 </div>

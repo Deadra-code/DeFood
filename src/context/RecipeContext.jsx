@@ -1,6 +1,6 @@
 // Lokasi file: src/context/RecipeContext.js
-// Deskripsi: Menerapkan pembaruan state optimis. UI tidak lagi menunggu
-//            refetch untuk menampilkan perubahan.
+// Deskripsi: (DIPERBARUI) Menambahkan pemeriksaan keamanan untuk memastikan
+//            hanya resep dengan ID yang valid yang ditambahkan ke state.
 
 import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
 import * as api from '../api/electronAPI';
@@ -34,9 +34,21 @@ export const RecipeProvider = ({ children }) => {
     const addRecipe = async (recipe) => {
         try {
             const newRecipe = await api.addRecipe(recipe);
-            // Pembaruan Optimis
-            setRecipes(prev => [...prev, newRecipe].sort((a, b) => a.name.localeCompare(b.name)));
-            return newRecipe; 
+
+            // --- PENINGKATAN KEAMANAN ---
+            // Sebelum menambahkan ke state, pastikan objek resep baru
+            // memiliki ID yang valid (bukan undefined atau null).
+            if (newRecipe && typeof newRecipe.id !== 'undefined' && newRecipe.id !== null) {
+                setRecipes(prev => [...prev, newRecipe].sort((a, b) => a.name.localeCompare(b.name)));
+                return newRecipe;
+            } else {
+                // Jika ID tidak valid, log error dan jangan perbarui state
+                // untuk mencegah aplikasi crash.
+                console.error("Gagal menambahkan resep ke state: ID tidak valid.", newRecipe);
+                // Mungkin refetch data dari DB untuk sinkronisasi ulang
+                fetchRecipes();
+                throw new Error("Objek resep yang diterima dari backend tidak valid.");
+            }
         } catch (err) {
             console.error("Add recipe error:", err);
             throw err;
@@ -45,26 +57,24 @@ export const RecipeProvider = ({ children }) => {
     
     const updateRecipe = async (recipeToUpdate) => {
         const originalRecipes = [...recipes];
-        // Pembaruan Optimis
         setRecipes(prev => prev.map(r => r.id === recipeToUpdate.id ? recipeToUpdate : r));
         try {
             await api.updateRecipeDetails(recipeToUpdate);
         } catch (err) {
             console.error("Update recipe error:", err);
-            setRecipes(originalRecipes); // Kembalikan jika gagal
+            setRecipes(originalRecipes);
             throw err;
         }
     };
 
     const deleteRecipe = async (recipeId) => {
         const originalRecipes = [...recipes];
-        // Pembaruan Optimis
         setRecipes(prev => prev.filter(r => r.id !== recipeId));
         try {
             await api.deleteRecipe(recipeId);
         } catch (err) {
             console.error("Delete recipe error:", err);
-            setRecipes(originalRecipes); // Kembalikan jika gagal
+            setRecipes(originalRecipes);
             throw err;
         }
     };
@@ -72,7 +82,6 @@ export const RecipeProvider = ({ children }) => {
     const duplicateRecipe = async (recipeId) => {
         try {
             const newRecipe = await api.duplicateRecipe(recipeId);
-            // Pembaruan Optimis
             setRecipes(prev => [...prev, newRecipe].sort((a, b) => a.name.localeCompare(b.name)));
             return newRecipe;
         } catch (err) {

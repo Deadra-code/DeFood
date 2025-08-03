@@ -1,10 +1,11 @@
 // Lokasi file: src/features/Recipes/RecipeManagerPage.js
-// Deskripsi: Menghapus props 'isDirty' dan 'setIsDirty', sekarang menggunakan dari UIStateContext.
+// Deskripsi: (DIPERBARUI) Dialog konfirmasi sekarang memiliki tombol "Simpan dan Lanjutkan"
+//            dan tombol "Lanjutkan" diubah menjadi "Lanjutkan Tanpa Menyimpan".
 
 import React, { useState, useMemo } from 'react';
 import { Button } from '../../components/ui/button';
 import { Card, CardContent } from '../../components/ui/card';
-import { PlusCircle, ChevronRight, BookOpen, Search, ArrowUpDown } from 'lucide-react';
+import { PlusCircle, ChevronRight, BookOpen, Search, ArrowUpDown, Calculator } from 'lucide-react';
 import { useRecipeContext } from '../../context/RecipeContext';
 import RecipeDetailView from './RecipeDetailView';
 import { cn } from '../../lib/utils';
@@ -14,13 +15,13 @@ import { useUIStateContext } from '../../context/UIStateContext';
 import { Input } from '../../components/ui/input';
 import { AlertDialog, AlertDialogContent, AlertDialogHeader, AlertDialogTitle, AlertDialogDescription, AlertDialogFooter, AlertDialogCancel, AlertDialogAction } from '../../components/ui/alert-dialog';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '../../components/ui/dropdown-menu';
+import ProductionPlanPage from './components/ProductionPlan/ProductionPlanPage';
 
-// HAPUS: props isDirty, setIsDirty
 export default function RecipeManagerPage({ activeRecipe, setActiveRecipe }) {
     const { recipes, loading: recipesLoading, refetchRecipes } = useRecipeContext();
-    const { isDirty, setIsDirty, setIsCreatingRecipe } = useUIStateContext(); // BARU
+    const { isDirty, setIsDirty, setIsCreatingRecipe, saveAction } = useUIStateContext(); // Ambil saveAction
     const [searchTerm, setSearchTerm] = useState('');
-    
+    const [viewMode, setViewMode] = useState('detail');
     const [pendingRecipe, setPendingRecipe] = useState(null);
     const [isUnsavedAlertOpen, setIsUnsavedAlertOpen] = useState(false);
     const [sortOrder, setSortOrder] = useState('name-asc');
@@ -31,14 +32,25 @@ export default function RecipeManagerPage({ activeRecipe, setActiveRecipe }) {
             setIsUnsavedAlertOpen(true);
         } else {
             setActiveRecipe(recipe);
+            setViewMode('detail');
         }
     };
 
     const confirmRecipeChange = () => {
         setIsDirty(false);
         setActiveRecipe(pendingRecipe);
+        setViewMode('detail');
         setIsUnsavedAlertOpen(false);
         setPendingRecipe(null);
+    };
+
+    // --- BARU: Fungsi untuk menyimpan lalu melanjutkan ---
+    const handleSaveAndProceed = async () => {
+        if (saveAction && typeof saveAction.save === 'function') {
+            await saveAction.save(); // Tunggu hingga proses simpan selesai
+        }
+        // Setelah simpan, lanjutkan dengan perubahan resep
+        confirmRecipeChange();
     };
 
     const handleRecipeDeleted = () => {
@@ -69,6 +81,25 @@ export default function RecipeManagerPage({ activeRecipe, setActiveRecipe }) {
         return processedRecipes;
     }, [recipes, searchTerm, sortOrder]);
 
+    const renderMainContent = () => {
+        if (viewMode === 'planner') {
+            return <ProductionPlanPage />;
+        }
+        if (activeRecipe) {
+            return <RecipeDetailView key={activeRecipe.id} recipe={activeRecipe} onRecipeDeleted={handleRecipeDeleted} onRecipeUpdated={handleRecipeUpdated} />;
+        }
+        if (!recipesLoading) {
+            return (
+                <div className="flex flex-col items-center justify-center h-full text-center">
+                    <BookOpen className="h-16 w-16 text-muted-foreground/50 mb-4" />
+                    <h3 className="text-lg font-semibold">Selamat Datang!</h3>
+                    <p className="text-muted-foreground text-sm">Pilih resep dari daftar atau buat yang baru.</p>
+                </div>
+            );
+        }
+        return null;
+    };
+
     return (
         <div className="grid grid-cols-[320px_1fr] h-full bg-muted/30">
             <aside className="border-r bg-card flex flex-col h-full animate-slide-in-from-left">
@@ -88,7 +119,12 @@ export default function RecipeManagerPage({ activeRecipe, setActiveRecipe }) {
                             </DropdownMenuContent>
                         </DropdownMenu>
                     </div>
-                    <Button className="w-full" onClick={() => setIsCreatingRecipe(true)}><PlusCircle className="mr-2 h-4 w-4" /> Resep Baru</Button>
+                    <div className="space-y-2">
+                        <Button className="w-full" onClick={() => setIsCreatingRecipe(true)}><PlusCircle className="mr-2 h-4 w-4" /> Resep Baru</Button>
+                        <Button variant="outline" className="w-full" onClick={() => setViewMode('planner')}>
+                            <Calculator className="mr-2 h-4 w-4" /> Kalkulator Gabungan
+                        </Button>
+                    </div>
                 </div>
                 <div className="flex-grow overflow-y-auto">
                     {recipesLoading ? (
@@ -96,7 +132,7 @@ export default function RecipeManagerPage({ activeRecipe, setActiveRecipe }) {
                     ) : sortedAndFilteredRecipes.length > 0 ? (
                         <div className="space-y-2 p-4">
                             {sortedAndFilteredRecipes.map((recipe, index) => (
-                                <Card key={recipe.id} onClick={() => handleRecipeSelect(recipe)} className={cn("cursor-pointer transition-all hover:border-primary/80 animate-fade-in-up", activeRecipe?.id === recipe.id ? 'border-primary bg-primary/5' : '')} style={{ animationDelay: `${index * 50}ms` }}>
+                                <Card key={recipe.id} onClick={() => handleRecipeSelect(recipe)} className={cn("cursor-pointer transition-all hover:border-primary/80 animate-fade-in-up", viewMode === 'detail' && activeRecipe?.id === recipe.id ? 'border-primary bg-primary/5' : '')} style={{ animationDelay: `${index * 50}ms` }}>
                                     <CardContent className="p-3 flex justify-between items-center gap-2">
                                         <p className="font-semibold truncate flex-1 min-w-0">{recipe.name}</p>
                                         <ChevronRight className="h-5 w-5 text-muted-foreground flex-shrink-0" />
@@ -113,19 +149,29 @@ export default function RecipeManagerPage({ activeRecipe, setActiveRecipe }) {
             </aside>
             
             <main className="flex-grow overflow-y-auto animate-slide-in-from-right" style={{ animationDelay: '100ms' }}>
-                {activeRecipe ? (
-                    // HAPUS: prop setIsDirty
-                    <RecipeDetailView key={activeRecipe.id} recipe={activeRecipe} onRecipeDeleted={handleRecipeDeleted} onRecipeUpdated={handleRecipeUpdated} />
-                ) : !recipesLoading && (
-                    <div className="flex flex-col items-center justify-center h-full text-center">
-                        <BookOpen className="h-16 w-16 text-muted-foreground/50 mb-4" />
-                        <h3 className="text-lg font-semibold">Selamat Datang!</h3>
-                        <p className="text-muted-foreground text-sm">Pilih resep dari daftar atau buat yang baru.</p>
-                    </div>
-                )}
+                {renderMainContent()}
             </main>
 
-            <AlertDialog open={isUnsavedAlertOpen} onOpenChange={setIsUnsavedAlertOpen}><AlertDialogContent><AlertDialogHeader><AlertDialogTitle>Perubahan Belum Disimpan</AlertDialogTitle><AlertDialogDescription>Anda memiliki perubahan yang belum disimpan. Jika Anda melanjutkan, perubahan tersebut akan hilang. Apakah Anda yakin?</AlertDialogDescription></AlertDialogHeader><AlertDialogFooter><AlertDialogCancel>Batal</AlertDialogCancel><AlertDialogAction onClick={confirmRecipeChange}>Lanjutkan</AlertDialogAction></AlertDialogFooter></AlertDialogContent></AlertDialog>
+            {/* --- PERBAIKAN: Dialog konfirmasi diperbarui --- */}
+            <AlertDialog open={isUnsavedAlertOpen} onOpenChange={setIsUnsavedAlertOpen}>
+                <AlertDialogContent>
+                    <AlertDialogHeader>
+                        <AlertDialogTitle>Perubahan Belum Disimpan</AlertDialogTitle>
+                        <AlertDialogDescription>
+                            Anda memiliki perubahan yang belum disimpan. Apa yang ingin Anda lakukan?
+                        </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                        <AlertDialogCancel>Batal</AlertDialogCancel>
+                        <AlertDialogAction asChild>
+                            <Button variant="destructive" onClick={confirmRecipeChange}>Lanjutkan Tanpa Menyimpan</Button>
+                        </AlertDialogAction>
+                        <AlertDialogAction asChild>
+                            <Button onClick={handleSaveAndProceed}>Simpan dan Lanjutkan</Button>
+                        </AlertDialogAction>
+                    </AlertDialogFooter>
+                </AlertDialogContent>
+            </AlertDialog>
         </div>
     );
 }

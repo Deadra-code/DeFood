@@ -1,19 +1,20 @@
 // Lokasi file: src/context/UIStateContext.js
-// Deskripsi: Menambahkan state 'isDirty' untuk manajemen perubahan yang belum disimpan secara global.
+// Deskripsi: (DIPERBARUI) Menambahkan state 'saveAction' untuk memungkinkan
+//            komponen lain memicu fungsi simpan secara global.
 
 import React, { createContext, useContext, useState } from 'react';
 
 const UIStateContext = createContext();
 
 export const UIStateProvider = ({ children }) => {
-    // State untuk mengelola data bahan yang sedang diedit atau dibuat.
     const [foodToEdit, setFoodToEdit] = useState(null);
-    
-    // State untuk mengontrol visibilitas dialog pembuatan resep baru.
     const [isCreatingRecipe, setIsCreatingRecipe] = useState(false);
-
-    // BARU: State untuk melacak perubahan yang belum disimpan di halaman detail resep.
     const [isDirty, setIsDirty] = useState(false);
+    
+    // --- BARU: State untuk menyimpan fungsi 'simpan' yang aktif ---
+    // Ini memungkinkan dialog konfirmasi untuk memanggil fungsi simpan
+    // dari komponen RecipeDetailView tanpa prop drilling.
+    const [saveAction, setSaveAction] = useState(null);
 
     const value = {
         foodToEdit,
@@ -22,6 +23,8 @@ export const UIStateProvider = ({ children }) => {
         setIsCreatingRecipe,
         isDirty,
         setIsDirty,
+        saveAction,
+        setSaveAction,
     };
 
     return <UIStateContext.Provider value={value}>{children}</UIStateContext.Provider>;

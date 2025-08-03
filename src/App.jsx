@@ -1,5 +1,6 @@
 // Lokasi file: src/App.js
-// Deskripsi: Menghapus state 'isDirty' lokal dan props terkait, sekarang menggunakan dari UIStateContext.
+// Deskripsi: (DIPERBARUI) Menambahkan persistensi state menggunakan localStorage untuk
+//            mengingat tab aktif dan resep terakhir yang dibuka.
 
 import React, { useState, useEffect } from 'react';
 import { Loader2, BookOpen, Database, Moon, Sun, Settings as SettingsIcon } from 'lucide-react';
@@ -11,7 +12,7 @@ import ToasterProvider from './components/ui/ToasterProvider.jsx';
 import FoodDialogManager from './components/FoodDialogManager';
 import RecipeDialogManager from './features/Recipes/components/RecipeDialogManager';
 import { useRecipeContext } from './context/RecipeContext';
-import { useUIStateContext } from './context/UIStateContext'; // BARU
+import { useUIStateContext } from './context/UIStateContext';
 import { Button } from './components/ui/button';
 import { AlertDialog, AlertDialogContent, AlertDialogHeader, AlertDialogTitle, AlertDialogDescription, AlertDialogFooter, AlertDialogCancel, AlertDialogAction } from './components/ui/alert-dialog';
 import { TooltipProvider } from './components/ui/tooltip';
@@ -21,20 +22,30 @@ import SettingsDialog from './features/Settings/SettingsDialog';
 
 export default function App() {
     const { apiReady } = useAppContext();
-    const { recipes, loading: recipesLoading, refetchRecipes } = useRecipeContext();
-    const { isDirty, setIsDirty } = useUIStateContext(); // BARU: Menggunakan state dari konteks
+    const { recipes, loading: recipesLoading } = useRecipeContext();
+    const { isDirty, setIsDirty, saveAction } = useUIStateContext();
+
+    // --- PENINGKATAN: State diinisialisasi dari localStorage ---
+    const [activeTab, setActiveTab] = useState(localStorage.getItem('activeTab') || 'recipes');
     const [activeRecipe, setActiveRecipe] = useState(null);
+    
     const [theme, setTheme] = useState(localStorage.getItem('theme') || 'light');
-    
-    const [newlyCreatedRecipe, setNewlyCreatedRecipe] = useState(null);
-    
-    const [activeTab, setActiveTab] = useState('recipes'); 
     const [pendingTab, setPendingTab] = useState(null);
-    // HAPUS: const [isDirty, setIsDirty] = useState(false);
     const [isUnsavedAlertOpen, setIsUnsavedAlertOpen] = useState(false);
-    
     const [isSettingsDialogOpen, setIsSettingsDialogOpen] = useState(false);
 
+    // --- PENINGKATAN: Efek untuk menyimpan state ke localStorage ---
+    useEffect(() => {
+        localStorage.setItem('activeTab', activeTab);
+    }, [activeTab]);
+
+    useEffect(() => {
+        if (activeRecipe) {
+            localStorage.setItem('activeRecipeId', activeRecipe.id);
+        }
+    }, [activeRecipe]);
+
+    // Efek untuk mengatur tema
     useEffect(() => {
         const root = window.document.documentElement;
         root.classList.remove('light', 'dark');
@@ -42,26 +53,22 @@ export default function App() {
         localStorage.setItem('theme', theme);
     }, [theme]);
 
+    // Efek untuk memulihkan dan mengatur resep aktif
     useEffect(() => {
-        if (newlyCreatedRecipe && recipes.find(r => r.id === newlyCreatedRecipe.id)) {
-            setActiveRecipe(newlyCreatedRecipe);
-            setNewlyCreatedRecipe(null);
+        if (!recipesLoading && recipes.length > 0) {
+            const lastRecipeId = localStorage.getItem('activeRecipeId');
+            const recipeToSelect = recipes.find(r => r.id === parseInt(lastRecipeId, 10)) || recipes[0];
+            setActiveRecipe(recipeToSelect);
+        } else if (!recipesLoading && recipes.length === 0) {
+            setActiveRecipe(null);
         }
-    }, [newlyCreatedRecipe, recipes]);
+    }, [recipes, recipesLoading]);
 
-    useEffect(() => {
-        if (!recipesLoading && recipes.length > 0 && !activeRecipe && !newlyCreatedRecipe) {
-            const sortedRecipes = [...recipes].sort((a, b) => a.name.localeCompare(b.name));
-            setActiveRecipe(sortedRecipes[0]);
-        }
-    }, [recipes, recipesLoading, activeRecipe, newlyCreatedRecipe]);
 
     const toggleTheme = () => setTheme(prev => (prev === 'light' ? 'dark' : 'light'));
     
     const handleRecipeCreated = (newRecipe) => {
-        refetchRecipes().then(() => {
-            setNewlyCreatedRecipe(newRecipe);
-        });
+        setActiveRecipe(newRecipe);
     };
 
     const handleTabChange = (newTab) => {
@@ -78,6 +85,13 @@ export default function App() {
         setActiveTab(pendingTab);
         setIsUnsavedAlertOpen(false);
         setPendingTab(null);
+    };
+
+    const handleSaveAndProceed = async () => {
+        if (saveAction && typeof saveAction.save === 'function') {
+            await saveAction.save();
+        }
+        confirmTabChange();
     };
 
     if (!apiReady) {
@@ -118,7 +132,6 @@ export default function App() {
                     
                     <main className="flex-grow overflow-hidden">
                         <TabsContent value="recipes" className="h-full m-0 animate-fade-in">
-                            {/* HAPUS: props isDirty dan setIsDirty */}
                             <RecipeManagerPage 
                                 activeRecipe={activeRecipe}
                                 setActiveRecipe={setActiveRecipe}
@@ -129,7 +142,25 @@ export default function App() {
                 </Tabs>
             </div>
             
-            <AlertDialog open={isUnsavedAlertOpen} onOpenChange={setIsUnsavedAlertOpen}><AlertDialogContent><AlertDialogHeader><AlertDialogTitle>Perubahan Belum Disimpan</AlertDialogTitle><AlertDialogDescription>Anda memiliki perubahan yang belum disimpan. Jika Anda melanjutkan, perubahan tersebut akan hilang. Apakah Anda yakin?</AlertDialogDescription></AlertDialogHeader><AlertDialogFooter><AlertDialogCancel onClick={() => setPendingTab(null)}>Batal</AlertDialogCancel><AlertDialogAction onClick={confirmTabChange}>Lanjutkan</AlertDialogAction></AlertDialogFooter></AlertDialogContent></AlertDialog>
+            <AlertDialog open={isUnsavedAlertOpen} onOpenChange={setIsUnsavedAlertOpen}>
+                <AlertDialogContent>
+                    <AlertDialogHeader>
+                        <AlertDialogTitle>Perubahan Belum Disimpan</AlertDialogTitle>
+                        <AlertDialogDescription>
+                            Anda memiliki perubahan yang belum disimpan. Apa yang ingin Anda lakukan?
+                        </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                        <AlertDialogCancel onClick={() => setPendingTab(null)}>Batal</AlertDialogCancel>
+                        <AlertDialogAction asChild>
+                            <Button variant="destructive" onClick={confirmTabChange}>Lanjutkan Tanpa Menyimpan</Button>
+                        </AlertDialogAction>
+                        <AlertDialogAction asChild>
+                            <Button onClick={handleSaveAndProceed}>Simpan dan Lanjutkan</Button>
+                        </AlertDialogAction>
+                    </AlertDialogFooter>
+                </AlertDialogContent>
+            </AlertDialog>
         </TooltipProvider>
     );
 }

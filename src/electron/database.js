@@ -1,5 +1,5 @@
 // Lokasi file: src/electron/database.js
-// Deskripsi: (DIPERBARUI) Dimigrasikan untuk menggunakan 'better-sqlite3' yang lebih andal untuk proses build.
+// Deskripsi: Skema database v2 dengan kolom 'base_quantity' dan 'base_unit'.
 
 const { app } = require('electron');
 const path = require('path');
@@ -7,7 +7,7 @@ const Database = require('better-sqlite3');
 const log = require('electron-log');
 
 const dbPath = path.join(app.getPath('userData'), 'defood.db');
-const LATEST_DB_VERSION = 1;
+const LATEST_DB_VERSION = 2;
 let db;
 
 function initializeDatabase() {
@@ -15,10 +15,8 @@ function initializeDatabase() {
         db = new Database(dbPath, { verbose: console.log });
         log.info('Database terhubung di', dbPath);
 
-        // Aktifkan foreign keys
         db.pragma('foreign_keys = ON');
 
-        // Dapatkan versi database saat ini
         let currentVersion = db.pragma('user_version', { simple: true });
         log.info(`Versi DB saat ini: ${currentVersion}, Versi DB terbaru: ${LATEST_DB_VERSION}`);
 
@@ -90,6 +88,21 @@ function runMigrations(currentVersion) {
             throw err;
         }
     }
+    
+    if (currentVersion < 2) {
+        log.info('Migrasi ke v2: Menambahkan kolom satuan dasar ke tabel foods...');
+        try {
+            db.transaction(() => {
+                db.exec(`ALTER TABLE foods ADD COLUMN base_quantity REAL DEFAULT 100;`);
+                db.exec(`ALTER TABLE foods ADD COLUMN base_unit TEXT DEFAULT 'gram';`);
+            })();
+            log.info('Kolom base_quantity dan base_unit berhasil ditambahkan.');
+        } catch (err) {
+            log.error('Gagal migrasi database ke v2:', err);
+            throw err;
+        }
+    }
+
     db.pragma(`user_version = ${LATEST_DB_VERSION}`);
 }
 
@@ -97,7 +110,6 @@ function getDbInstance() {
     if (!db) {
         throw new Error("Database belum diinisialisasi.");
     }
-    // Mengganti metode async dengan metode sinkron dari better-sqlite3
     db.runAsync = (sql, params = []) => db.prepare(sql).run(params);
     db.getAsync = (sql, params = []) => db.prepare(sql).get(params);
     db.allAsync = (sql, params = []) => db.prepare(sql).all(params);

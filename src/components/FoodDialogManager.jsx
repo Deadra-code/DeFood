@@ -1,5 +1,6 @@
 // Lokasi file: src/components/FoodDialogManager.jsx
-// Deskripsi: Memperbarui logika penanganan error untuk menangani pesan error yang lebih spesifik dari backend.
+// Deskripsi: (DIPERBARUI) Lebar modal diperbesar dari 'max-w-md' menjadi 'max-w-2xl'
+//            untuk mengakomodasi layout form yang lebih kompleks.
 
 import React, { useState } from 'react';
 import { Dialog, DialogContent } from './ui/dialog';
@@ -40,9 +41,7 @@ export default function FoodDialogManager() {
             const errorMessage =
                 dbError.message || 'Terjadi kesalahan tidak diketahui.';
             
-            // --- PERBAIKAN: Penanganan error spesifik untuk UNIQUE constraint ---
             if (errorMessage.startsWith('DB_UNIQUE_CONSTRAINT:')) {
-                // Menghapus prefix dan menampilkan pesan yang ramah pengguna
                 const cleanMessage = errorMessage.replace('DB_UNIQUE_CONSTRAINT:', '').trim();
                 notify.error(`Gagal: ${cleanMessage}`);
             } else {
@@ -59,7 +58,8 @@ export default function FoodDialogManager() {
 
     return (
         <Dialog open={isModalOpen} onOpenChange={(open) => !open && handleCancel()}>
-            <DialogContent className="sm:max-w-md">
+            {/* --- PERBAIKAN: Lebar modal diubah di sini --- */}
+            <DialogContent className="sm:max-w-2xl">
                 {foodToEdit && (
                     <>
                         {isGlobalEdit && (

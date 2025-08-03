@@ -1,5 +1,5 @@
 // Lokasi file: src/electron/ipcHandlers/recipeHandlers.js
-// Deskripsi: (LENGKAP & TERBARU) Handler IPC untuk semua operasi terkait resep,
+// Deskripsi: (VERSI LENGKAP & TERBARU) Handler IPC untuk semua operasi terkait resep,
 //            termasuk penambahan, pembaruan, penghapusan, duplikasi,
 //            manajemen bahan, dan integrasi AI, serta margin keuntungan per resep.
 
@@ -59,10 +59,31 @@ function registerRecipeHandlers(ipcMain, db) {
     ipcMain.handle('db:get-recipes', async () => db.allAsync("SELECT * FROM recipes ORDER BY name ASC"));
     
     ipcMain.handle('db:add-recipe', async (event, recipe) => {
-        const sql = "INSERT INTO recipes (name, description, instructions, servings, cost_operational_recipe, cost_labor_recipe, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)";
-        const params = [recipe.name, recipe.description || '', recipe.instructions || '', recipe.servings || 1, 0, 0, new Date().toISOString()];
+        const sql = "INSERT INTO recipes (name, description, instructions, servings, cost_operational_recipe, cost_labor_recipe, margin_percent, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)";
+        const createdAt = new Date().toISOString();
+        const params = [
+            recipe.name, 
+            '', 
+            '', 
+            1,
+            0,
+            0,
+            50, 
+            createdAt
+        ];
         const result = await db.runAsync(sql, params);
-        return { id: result.lastID, ...recipe, cost_operational_recipe: 0, cost_labor_recipe: 0, margin_percent: 50 };
+        const newId = result.lastInsertRowid;
+        return { 
+            id: newId, 
+            name: recipe.name,
+            description: '',
+            instructions: '',
+            servings: 1,
+            cost_operational_recipe: 0,
+            cost_labor_recipe: 0,
+            margin_percent: 50,
+            created_at: createdAt
+        };
     });
 
     ipcMain.handle('db:update-recipe-details', async (event, recipe) => {
@@ -118,7 +139,7 @@ function registerRecipeHandlers(ipcMain, db) {
                 new Date().toISOString()
             ];
             const newRecipeResult = await db.runAsync(sql, params);
-            const newRecipeId = newRecipeResult.lastID;
+            const newRecipeId = newRecipeResult.lastInsertRowid;
 
             const originalIngredients = await db.allAsync("SELECT food_id, quantity, unit, display_order FROM recipe_ingredients WHERE recipe_id = ?", [recipeId]);
             if (originalIngredients.length > 0) {
@@ -218,7 +239,20 @@ function registerRecipeHandlers(ipcMain, db) {
     ipcMain.handle('ai:generate-instructions', async (event, { recipeName, ingredients }) => {
         const apiKey = await getApiKey();
         const ingredientNames = ingredients.map(ing => `${ing.food.name} (${ing.quantity} ${ing.unit})`).join(', ');
-        const prompt = `Sebagai penulis resep, buat langkah-langkah memasak yang jelas dengan gaya naratif untuk resep "${recipeName}" menggunakan bahan: ${ingredientNames}. ATURAN: Seluruh teks HARUS dalam Bahasa Indonesia. Gunakan format bernomor (1., 2., dst.). JANGAN gunakan format lain. Kembalikan objek JSON dengan satu kunci "instructions" yang berisi seluruh teks sebagai satu string.`;
+        
+        const prompt = `
+            Sebagai Asisten Koki Profesional, buat daftar instruksi memasak yang jelas, singkat, dan bernomor untuk resep "${recipeName}" menggunakan bahan: ${ingredientNames}.
+            
+            ATURAN KETAT:
+            1.  Gunakan format daftar bernomor (1., 2., 3., dst.).
+            2.  Setiap nomor HARUS berisi satu aksi atau langkah utama.
+            3.  Gunakan bahasa yang langsung dan mudah diikuti (kalimat perintah, contoh: "Aduk rata", "Panaskan oven").
+            4.  JANGAN tambahkan paragraf pembuka, penutup, atau komentar naratif yang tidak perlu. Langsung ke langkah pertama.
+            5.  Seluruh teks HARUS dalam Bahasa Indonesia.
+            6.  Pastikan output adalah string tunggal dengan setiap langkah dipisahkan oleh karakter baris baru (newline).
+
+            Kembalikan objek JSON dengan satu kunci "instructions" yang berisi seluruh teks instruksi sebagai satu string tunggal.
+        `;
         return (await callGoogleAI(apiKey, prompt)).instructions || "";
     });
 }
